@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lustre</title>
+    <link rel="stylesheet" href="css/fonts.css" />
+    <style>
+      html, body { height: 100%; margin: 0; }
+      body {
+        background: #090909;
+        color: #f4efe6;
+        font-family: "Lustre Sans", "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      main { width: min(420px, 100%); }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      p { margin: 0 0 20px; font-size: 17px; line-height: 1.45; }
+      button {
+        width: 100%;
+        min-height: 52px;
+        border: none;
+        background: #c9853a;
+        color: #1a1612;
+        font: inherit;
+        font-size: 15px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      #note { margin-top: 16px; color: #a39b90; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Lustre</h1>
+      <p>Continue with Google, then search the album name, select the photos, and press Done. They play on the television.</p>
+      <button id="go" type="button">Continue with Google</button>
+      <p id="note"></p>
+    </main>
+    <script type="module" src="js/pair.js?v=3"></script>
+  </body>
+</html>

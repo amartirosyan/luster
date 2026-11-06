@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+.lustre-legal {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 120;
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding: 10px 16px 14px;
+  background: linear-gradient(to top, rgba(9, 9, 9, 0.92), transparent);
+  font-family: "Lustre Sans", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lustre-legal a {
+  color: #a39b90;
+  text-decoration: none;
+}
+
+.lustre-legal a:hover,
+.lustre-legal a:focus-visible {
+  color: #f4efe6;
+}
+
+.lustre-doc {
+  box-sizing: border-box;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+  color: #f4efe6;
+  font-family: "Lustre Sans", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.lustre-doc-kicker,
+.lustre-doc h1,
+.lustre-doc h2 {
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lustre-doc-kicker {
+  margin: 0 0 12px;
+  color: #c9853a;
+  font-size: 13px;
+}
+
+.lustre-doc h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  letter-spacing: 0.14em;
+}
+
+.lustre-doc h2 {
+  margin: 32px 0 8px;
+  font-size: 14px;
+}
+
+.lustre-doc p,
+.lustre-doc li {
+  color: #f4efe6;
+}
+
+.lustre-doc-date {
+  margin: 0 0 24px;
+  color: #a39b90;
+  font-size: 14px;
+}
+
+.lustre-doc a {
+  color: #c9853a;
+}
+
+.lustre-doc code {
+  font-size: 0.85em;
+  word-break: break-all;
+}
+
+.lustre-doc-nav {
+  display: flex;
+  gap: 20px;
+  margin-top: 40px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 13px;
+}

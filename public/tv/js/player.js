@@ -593,7 +593,7 @@ export function mountPlayer(root, options = {}) {
         opacity: depth === 0 ? 1 : 0.92,
         z: 10 - depth,
         rotate: rotNow,
-        caption: depth === 0 ? `${photo.date}  \u00b7  ${photo.title}` : "",
+        caption: depth === 0 ? `${photo.date}  ·  ${photo.title}` : "",
         box: { x: restX, y, w: box.w, h: box.h },
       });
     });
@@ -726,9 +726,9 @@ export function mountPlayer(root, options = {}) {
     const g = photo.stops?.length ?? 0;
     let who = "No face";
     if (n === 1) who = "1 face";
-    else if (n > 1 && g <= 1) who = `${n} faces \u00b7 one frame`;
+    else if (n > 1 && g <= 1) who = `${n} faces · one frame`;
     else if (n > 1) who = `${n} faces`;
-    return move ? `${who} \u00b7 ${move} \u00b7 ${zoom}` : who;
+    return move ? `${who} · ${move} · ${zoom}` : who;
   }
 
   const titleEl = document.createElement("div");
@@ -817,7 +817,7 @@ export function mountPlayer(root, options = {}) {
     if (faces) bits.push(faces);
     if (downloadNote) bits.push(downloadNote);
     if (detectorNote) bits.push(detectorNote);
-    metaEl.textContent = bits.join("  \u00b7  ");
+    metaEl.textContent = bits.join("  ·  ");
     pauseBtn.textContent = paused ? "Play" : "Pause";
     stage.classList.toggle("is-album", style === "prints" || style === "strip");
   }
@@ -1075,7 +1075,7 @@ export function mountPlayer(root, options = {}) {
     loading = true;
     started = false;
     status.hidden = false;
-    setStatus("Opening the album\u2026");
+    setStatus("Opening the album…");
     let stored;
     try {
       stored = await loadAlbum(id);
@@ -1308,7 +1308,7 @@ export function mountPlayer(root, options = {}) {
       button.addEventListener("click", () => applyBlur(item.id));
       prefChoices.append(button);
     }
-    prefVersion.textContent = updateOffer ? `Version ${REV} \u00b7 ${updateOffer.version} is ready` : `Version ${REV}`;
+    prefVersion.textContent = updateOffer ? `Version ${REV} · ${updateOffer.version} is ready` : `Version ${REV}`;
     prefUpdate.textContent = updateOffer ? `Install ${updateOffer.version}` : "Check for update";
     updateBtn.hidden = !updateOffer;
     if (updateOffer) updateBtn.textContent = `Update ${updateOffer.version}`;
@@ -1379,7 +1379,7 @@ export function mountPlayer(root, options = {}) {
         return;
       }
     }
-    prefNote.textContent = "Downloading the update\u2026";
+    prefNote.textContent = "Downloading the update…";
     prefUpdate.disabled = true;
     try {
       const file = await lunaUntil(
@@ -1398,7 +1398,7 @@ export function mountPlayer(root, options = {}) {
           return "";
         },
       );
-      prefNote.textContent = "Installing\u2026";
+      prefNote.textContent = "Installing…";
       await lunaUntil(
         "luna://com.webos.appInstallService/dev/install",
         { id: "com.lustre.tv", ipkUrl: file },
@@ -1454,7 +1454,7 @@ export function mountPlayer(root, options = {}) {
       void startPhonePair();
       return;
     }
-    note.textContent = "Opening Google\u2026";
+    note.textContent = "Opening Google…";
     originLabel.hidden = true;
     originValue.hidden = true;
     google.signIn().then(() => {
@@ -1484,7 +1484,7 @@ export function mountPlayer(root, options = {}) {
     void installOffer();
   });
   saveBtn.addEventListener("click", () => {
-    saveBtn.textContent = "Saving\u2026";
+    saveBtn.textContent = "Saving…";
     persistCurrent().then(() => {
       saveBtn.textContent = "Save album";
       note.textContent = `Saved as ${savedName}`;
@@ -1535,7 +1535,7 @@ export function mountPlayer(root, options = {}) {
     showCode(false);
     heading.textContent = "Scan with your phone";
     blurb.textContent = "Sign in on the phone, not on the television. Then search the album name, select the photos, and press Done. Google sends those photos only, not the whole album.";
-    note.textContent = "Making a code for this television\u2026";
+    note.textContent = "Making a code for this television…";
     chooseBtn.textContent = "Please wait";
     try {
       const { id, origin } = await createPhoneCode();
@@ -1556,7 +1556,7 @@ export function mountPlayer(root, options = {}) {
       const finish = async (pair, data) => {
         google.adopt(data.token, data.expiresIn);
         google.useSite(pair.origin);
-        note.textContent = "Loading the photos\u2026";
+        note.textContent = "Loading the photos…";
         const items = await google.collect(data.sessionId, (text) => {
           if (gen === pickGen) note.textContent = quietStatus(text);
         });
@@ -1620,7 +1620,7 @@ export function mountPlayer(root, options = {}) {
     showCode(false);
     heading.textContent = "Lustre";
     blurb.textContent = "Making a code for this television.";
-    note.textContent = "Making a code for this television\u2026";
+    note.textContent = "Making a code for this television…";
     try {
       if (!google.signedIn()) await google.signIn();
       if (gen !== pickGen || dead) return;

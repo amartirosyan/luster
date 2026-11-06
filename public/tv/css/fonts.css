@@ -1,0 +1,31 @@
+@font-face {
+  font-family: "Lustre Sans";
+  src: url("../fonts/nunito-sans-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Lustre Sans";
+  src: url("../fonts/nunito-sans-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Lustre Serif";
+  src: url("../fonts/pagella-regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Lustre Serif";
+  src: url("../fonts/pagella-regular.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}

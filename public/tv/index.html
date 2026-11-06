@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lustre</title>
+    <link rel="stylesheet" href="css/fonts.css?v=2" />
+    <link rel="stylesheet" href="css/app.css?v=21" />
+    <style>
+      html, body { height: 100%; }
+      body { margin: 0; }
+    </style>
+  </head>
+  <body>
+    <main id="app"></main>
+    <script src="js/stay-awake.js?v=2"></script>
+    <script type="module">
+      import { mountPlayer } from "./js/player.js?v=43";
+      mountPlayer(document.getElementById("app"), { base: "" });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+Lustre — webOS TV app
+
+Unzip this archive so appinfo.json is in the folder you package
+(not nested inside another lustre-webos folder).
+
+On a PC with the webOS TV SDK / simulator (webOS 5 or newer):
+
+  cd into the unzipped folder
+  ares-package .
+  ares-install --device tv com.lustre.tv_1.1.0_all.ipk
+  ares-launch --device tv com.lustre.tv
+
+If the simulator is already the default device, drop --device tv.
+Arrow keys, Enter, and the color buttons match a TV remote.
+Red Still, Green Slide, Yellow Portrait, Blue Prints.
+5 on a keyboard selects Strip.
+Up / Down changes speed, except in Prints and Strip where it zooms.
+Enter or the Play key pauses. Back shows the controls, then leaves the app.
+Photos opens Google Photos or pictures on this device.
+The built-in reel plays without it.
+
+Portrait is the face camera: one face zooms in and back out, two or three
+faces are panned in order, four or more share one wide frame.
+Photos with no face drift slowly across the middle.

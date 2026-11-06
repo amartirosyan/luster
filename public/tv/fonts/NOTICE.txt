@@ -1,0 +1,10 @@
+Nunito Sans
+Copyright 2016 The Nunito Project Authors
+Licensed under the SIL Open Font License, Version 1.1
+https://openfontlicense.org
+
+TeX Gyre Pagella
+Copyright 2006-2026 for the TeX Gyre extensions by B. Jackowski, J. M. Nowacki, and the GUST e-foundry.
+Licensed under the GUST Font License.
+https://www.gust.org.pl/projects/e-foundry/licenses/GUST-FONT-LICENSE.txt
+Palatino is a design of Hermann Zapf. Pagella is the open equivalent used so the titles stay the same on the TV.

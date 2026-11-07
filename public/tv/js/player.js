@@ -1036,7 +1036,7 @@ export function mountPlayer(root, options = {}) {
     loading = true;
     started = false;
     status.hidden = false;
-    setStatus("Opening the album\u2026");
+    setStatus("Opening the album…");
     let stored;
     try {
       stored = await loadAlbum(id);
@@ -1293,7 +1293,7 @@ export function mountPlayer(root, options = {}) {
       void startPhonePair();
       return;
     }
-    note.textContent = "Opening Google\u2026";
+    note.textContent = "Opening Google…";
     originLabel.hidden = true;
     originValue.hidden = true;
     google.signIn().then(() => {
@@ -1318,7 +1318,7 @@ export function mountPlayer(root, options = {}) {
   prefsBtn.addEventListener("click", () => showMenu("prefs"));
   prefBack.addEventListener("click", () => showMenu(""));
   saveBtn.addEventListener("click", () => {
-    saveBtn.textContent = "Saving\u2026";
+    saveBtn.textContent = "Saving…";
     persistCurrent().then(() => {
       saveBtn.textContent = "Save album";
       note.textContent = `Saved as ${savedName}`;
@@ -1369,7 +1369,7 @@ export function mountPlayer(root, options = {}) {
     showCode(false);
     heading.textContent = "Scan with your phone";
     blurb.textContent = "Sign in on the phone, not on the television. Then search the album name, select the photos, and press Done. Google sends those photos only, not the whole album.";
-    note.textContent = "Making a code for this television\u2026";
+    note.textContent = "Making a code for this television…";
     chooseBtn.textContent = "Please wait";
     try {
       const { id, origin } = await createPhoneCode();
@@ -1390,7 +1390,7 @@ export function mountPlayer(root, options = {}) {
       const finish = async (pair, data) => {
         google.adopt(data.token, data.expiresIn);
         google.useSite(pair.origin);
-        note.textContent = "Loading the photos\u2026";
+        note.textContent = "Loading the photos…";
         const items = await google.collect(data.sessionId, (text) => {
           if (gen === pickGen) note.textContent = quietStatus(text);
         });
@@ -1454,7 +1454,7 @@ export function mountPlayer(root, options = {}) {
     showCode(false);
     heading.textContent = "Lustre";
     blurb.textContent = "Making a code for this television.";
-    note.textContent = "Making a code for this television\u2026";
+    note.textContent = "Making a code for this television…";
     try {
       if (!google.signedIn()) await google.signIn();
       if (gen !== pickGen || dead) return;

@@ -14,7 +14,7 @@ import { createGooglePhotos, explainGoogleError } from "./google.js?v=25";
 import { deleteAlbum, listAlbums, loadAlbum, renameAlbum, saveAlbum, screensaverId, setScreensaver } from "./albums.js?v=2";
 import qrcode from "./qrcode.js?v=2";
 
-const REV = "1.2.2";
+const REV = "1.2.5";
 const BLURS = [
   { id: "none", label: "None" },
   { id: "smooth", label: "Smooth", radius: 8, passes: 2, sat: 1.05, dark: 0.22 },
@@ -31,18 +31,6 @@ function storedBlur() {
     /* the television kept the choice private */
   }
   return "wash";
-}
-
-function newerVersion(remote, local) {
-  const parts = (value) => String(value || "0").split(".").map((n) => Number.parseInt(n, 10) || 0);
-  const a = parts(remote);
-  const b = parts(local);
-  const n = Math.max(a.length, b.length);
-  for (let i = 0; i < n; i += 1) {
-    if ((a[i] || 0) > (b[i] || 0)) return true;
-    if ((a[i] || 0) < (b[i] || 0)) return false;
-  }
-  return false;
 }
 
 function drawQr(canvas, text) {
@@ -127,7 +115,6 @@ export function mountPlayer(root, options = {}) {
   const motions = new Map();
   const useGpu = typeof HTMLElement !== "undefined" && typeof HTMLElement.prototype.animate === "function";
   let blurStyle = storedBlur();
-  let updateOffer = null;
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
   if (reduced) style = "still";
 
@@ -764,25 +751,6 @@ export function mountPlayer(root, options = {}) {
   row.append(titleEl, metaEl);
   hud.append(row, controls);
 
-  if (base) {
-    const prefix = /^\/hds-[a-z0-9]+-\d+-[a-z0-9]+/i.exec(window.location.pathname);
-    const rootPath = prefix ? prefix[0] : "";
-    const downloads = document.createElement("div");
-    downloads.className = "nl-downloads";
-    const banner = document.createElement("a");
-    banner.className = "nl-download";
-    banner.href = `${rootPath}/com.lustre.tv_${REV}_all.ipk`;
-    banner.download = `com.lustre.tv_${REV}_all.ipk`;
-    banner.textContent = `Download ${REV}`;
-    const sim = document.createElement("a");
-    sim.className = "nl-download";
-    sim.href = `${rootPath}/lustre-simulator-${REV}.zip`;
-    sim.download = `lustre-simulator-${REV}.zip`;
-    sim.textContent = `Simulator ${REV}`;
-    downloads.append(banner, sim);
-    root.append(downloads);
-  }
-
   function paintHud() {
     const photo = photos[index];
     const show = performance.now() < hudUntil || paused;
@@ -903,10 +871,6 @@ export function mountPlayer(root, options = {}) {
   const prefsBtn = document.createElement("button");
   prefsBtn.type = "button";
   prefsBtn.textContent = "Preferences";
-  const updateBtn = document.createElement("button");
-  updateBtn.type = "button";
-  updateBtn.hidden = true;
-  updateBtn.textContent = "Update";
   const saveBtn = document.createElement("button");
   saveBtn.type = "button";
   saveBtn.hidden = true;
@@ -924,7 +888,7 @@ export function mountPlayer(root, options = {}) {
   const homeVersion = document.createElement("p");
   homeVersion.className = "nl-home-version";
   homeVersion.textContent = REV;
-  actions.append(chooseBtn, albumsBtn, prefsBtn, updateBtn, saverBtn, saveBtn, signBtn, closeBtn);
+  actions.append(chooseBtn, albumsBtn, prefsBtn, saverBtn, saveBtn, signBtn, closeBtn);
   const albumPanel = document.createElement("div");
   albumPanel.className = "nl-albums";
   albumPanel.hidden = true;
@@ -948,12 +912,9 @@ export function mountPlayer(root, options = {}) {
   const prefVersion = document.createElement("p");
   prefVersion.className = "nl-album-count";
   prefVersion.textContent = `Version ${REV}`;
-  const prefUpdate = document.createElement("button");
-  prefUpdate.type = "button";
-  prefUpdate.textContent = "Check for update";
   const prefNote = document.createElement("p");
   prefNote.className = "nl-albums-empty";
-  prefPanel.append(prefBack, prefLead, prefChoices, prefVersion, prefUpdate, prefNote);
+  prefPanel.append(prefBack, prefLead, prefChoices, prefVersion, prefNote);
   card.append(heading, blurb, qrWrap, actions, albumPanel, prefPanel, note, homeVersion, originLabel, originValue);
   sheet.append(card);
   root.append(sheet);
@@ -1075,7 +1036,7 @@ export function mountPlayer(root, options = {}) {
     loading = true;
     started = false;
     status.hidden = false;
-    setStatus("Opening the album…");
+    setStatus("Opening the album\u2026");
     let stored;
     try {
       stored = await loadAlbum(id);
@@ -1279,7 +1240,6 @@ export function mountPlayer(root, options = {}) {
       qrWrap.hidden = true;
       heading.textContent = "Preferences";
       paintPrefs();
-      void checkUpdate();
       return;
     }
     heading.textContent = codeUrl ? "Scan with your phone" : "Lustre";
@@ -1308,128 +1268,7 @@ export function mountPlayer(root, options = {}) {
       button.addEventListener("click", () => applyBlur(item.id));
       prefChoices.append(button);
     }
-    prefVersion.textContent = updateOffer ? `Version ${REV} · ${updateOffer.version} is ready` : `Version ${REV}`;
-    prefUpdate.textContent = updateOffer ? `Install ${updateOffer.version}` : "Check for update";
-    updateBtn.hidden = !updateOffer;
-    if (updateOffer) updateBtn.textContent = `Update ${updateOffer.version}`;
-  }
-
-  function lunaUntil(uri, params, done) {
-    return new Promise((resolve, reject) => {
-      const Ctors = [];
-      if (typeof PalmServiceBridge !== "undefined") Ctors.push(PalmServiceBridge);
-      if (typeof WebOSServiceBridge !== "undefined" && WebOSServiceBridge !== PalmServiceBridge) Ctors.push(WebOSServiceBridge);
-      if (!Ctors.length && globalThis.webOS?.service?.request) {
-        const method = uri.split("/").pop();
-        globalThis.webOS.service.request(uri.slice(0, uri.lastIndexOf("/")), {
-          method,
-          parameters: params,
-          subscribe: true,
-          onSuccess(res) {
-            try {
-              const result = done(res || {});
-              if (result) resolve(result);
-            } catch (err) {
-              reject(err);
-            }
-          },
-          onFailure(err) {
-            reject(new Error(err?.errorText || "The television refused the update"));
-          },
-        });
-        return;
-      }
-      if (!Ctors.length) {
-        reject(new Error("Updates install on the television, with Developer Mode on."));
-        return;
-      }
-      const bridge = new Ctors[0]();
-      const finish = (message) => {
-        let response = message;
-        if (typeof message === "string") {
-          try {
-            response = JSON.parse(message);
-          } catch {
-            return;
-          }
-        }
-        if (!response || typeof response !== "object") return;
-        if (response.returnValue === false) {
-          reject(new Error(response.errorText || "The television refused the update"));
-          return;
-        }
-        try {
-          const result = done(response);
-          if (result) resolve(result);
-        } catch (err) {
-          reject(err);
-        }
-      };
-      bridge.onservicecallback = finish;
-      bridge.onload = finish;
-      bridge.call(uri, JSON.stringify({ ...params, subscribe: true }));
-    });
-  }
-
-  async function installOffer() {
-    if (!updateOffer?.ipk) {
-      await checkUpdate();
-      if (!updateOffer?.ipk) {
-        prefNote.textContent = "This is the latest version.";
-        return;
-      }
-    }
-    prefNote.textContent = "Downloading the update…";
-    prefUpdate.disabled = true;
-    try {
-      const file = await lunaUntil(
-        "luna://com.webos.service.downloadmanager/download",
-        {
-          target: updateOffer.ipk,
-          targetDir: "/media/internal",
-          targetFilename: "lustre-update.ipk",
-        },
-        (res) => {
-          if (res.amountTotal) {
-            prefNote.textContent = `Downloading ${Math.round((100 * (res.amountReceived || 0)) / res.amountTotal)}%`;
-          }
-          if (res.status === "completed") return res.destFile || "/media/internal/lustre-update.ipk";
-          if (res.status === "failed" || res.status === "canceled") throw new Error("The download stopped");
-          return "";
-        },
-      );
-      prefNote.textContent = "Installing…";
-      await lunaUntil(
-        "luna://com.webos.appInstallService/dev/install",
-        { id: "com.lustre.tv", ipkUrl: file },
-        (res) => {
-          const state = res.details?.state || res.status || "";
-          if (state === "installed" || res.statusValue === 30) return "installed";
-          return "";
-        },
-      );
-      prefNote.textContent = "Installed. Opening Lustre again.";
-      lunaUntil("luna://com.webos.applicationManager/launch", { id: "com.lustre.tv" }, () => "launched").catch(() => {});
-    } catch (err) {
-      prefUpdate.disabled = false;
-      prefNote.textContent = err?.message || "Could not install the update. Developer Mode has to be on.";
-    }
-  }
-
-  async function checkUpdate() {
-    try {
-      const res = await fetch("https://lustre.show/version.json", { cache: "no-store" });
-      if (!res.ok) return;
-      const body = await res.json();
-      updateOffer = newerVersion(body.version, REV) && body.ipk ? body : null;
-    } catch {
-      updateOffer = null;
-    }
-    if (!prefPanel.hidden) paintPrefs();
-    else {
-      updateBtn.hidden = !updateOffer;
-      if (updateOffer) updateBtn.textContent = `Update ${updateOffer.version}`;
-    }
+    prefVersion.textContent = `Version ${REV}`;
   }
 
   function showAlbumList(on) {
@@ -1454,7 +1293,7 @@ export function mountPlayer(root, options = {}) {
       void startPhonePair();
       return;
     }
-    note.textContent = "Opening Google…";
+    note.textContent = "Opening Google\u2026";
     originLabel.hidden = true;
     originValue.hidden = true;
     google.signIn().then(() => {
@@ -1478,13 +1317,8 @@ export function mountPlayer(root, options = {}) {
   albumBack.addEventListener("click", () => showAlbumList(false));
   prefsBtn.addEventListener("click", () => showMenu("prefs"));
   prefBack.addEventListener("click", () => showMenu(""));
-  prefUpdate.addEventListener("click", () => void installOffer());
-  updateBtn.addEventListener("click", () => {
-    showMenu("prefs");
-    void installOffer();
-  });
   saveBtn.addEventListener("click", () => {
-    saveBtn.textContent = "Saving…";
+    saveBtn.textContent = "Saving\u2026";
     persistCurrent().then(() => {
       saveBtn.textContent = "Save album";
       note.textContent = `Saved as ${savedName}`;
@@ -1535,7 +1369,7 @@ export function mountPlayer(root, options = {}) {
     showCode(false);
     heading.textContent = "Scan with your phone";
     blurb.textContent = "Sign in on the phone, not on the television. Then search the album name, select the photos, and press Done. Google sends those photos only, not the whole album.";
-    note.textContent = "Making a code for this television…";
+    note.textContent = "Making a code for this television\u2026";
     chooseBtn.textContent = "Please wait";
     try {
       const { id, origin } = await createPhoneCode();
@@ -1556,7 +1390,7 @@ export function mountPlayer(root, options = {}) {
       const finish = async (pair, data) => {
         google.adopt(data.token, data.expiresIn);
         google.useSite(pair.origin);
-        note.textContent = "Loading the photos…";
+        note.textContent = "Loading the photos\u2026";
         const items = await google.collect(data.sessionId, (text) => {
           if (gen === pickGen) note.textContent = quietStatus(text);
         });
@@ -1620,7 +1454,7 @@ export function mountPlayer(root, options = {}) {
     showCode(false);
     heading.textContent = "Lustre";
     blurb.textContent = "Making a code for this television.";
-    note.textContent = "Making a code for this television…";
+    note.textContent = "Making a code for this television\u2026";
     try {
       if (!google.signedIn()) await google.signIn();
       if (gen !== pickGen || dead) return;
@@ -1827,6 +1661,75 @@ export function mountPlayer(root, options = {}) {
   }
 
   let detector = null;
+  let booted = false;
+  let launchToken = readLaunchAlbum();
+
+  function albumToken(value) {
+    if (value == null) return "";
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) return "";
+      if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+        try {
+          return albumToken(JSON.parse(trimmed));
+        } catch {
+          return trimmed;
+        }
+      }
+      return trimmed;
+    }
+    if (typeof value !== "object") return "";
+    const direct = value.album || value.albumId || value.albumName || value.contentId;
+    if (typeof direct === "string" && direct.trim()) return direct.trim();
+    if (value.params) return albumToken(value.params);
+    return "";
+  }
+
+  function readLaunchAlbum() {
+    const bags = [];
+    try {
+      if (typeof PalmSystem !== "undefined" && PalmSystem.launchParams) bags.push(PalmSystem.launchParams);
+    } catch {
+      /* the television kept the launch private */
+    }
+    try {
+      if (globalThis.webOS?.launchParams) bags.push(globalThis.webOS.launchParams);
+    } catch {
+      /* older televisions omit this */
+    }
+    try {
+      const query = new URLSearchParams(location.search);
+      const named = query.get("album") || query.get("albumId");
+      if (named) bags.push({ album: named });
+    } catch {
+      /* a packaged app has no query string */
+    }
+    for (const bag of bags) {
+      const token = albumToken(bag);
+      if (token) return token;
+    }
+    return "";
+  }
+
+  async function playLaunchAlbum(token) {
+    let albums = [];
+    try {
+      albums = await listAlbums();
+    } catch (err) {
+      openSheet();
+      note.textContent = err?.message || "Could not read the albums.";
+      return;
+    }
+    const want = token.trim().toLowerCase();
+    const album = albums.find((item) => item.id === token)
+      || albums.find((item) => item.name.trim().toLowerCase() === want);
+    if (!album) {
+      openSheet();
+      note.textContent = `No album named "${token}".`;
+      return;
+    }
+    await playStored(album.id);
+  }
 
   async function boot() {
     try {
@@ -1837,15 +1740,28 @@ export function mountPlayer(root, options = {}) {
     }
     if (dead) return;
     holdAwake();
-    void checkUpdate();
     const saver = await screensaverId().catch(() => "");
     saverAlbumId = saver || "";
+    booted = true;
+    const requested = launchToken || readLaunchAlbum();
+    if (requested) {
+      await playLaunchAlbum(requested);
+      return;
+    }
     if (saver) {
       await playStored(saver, { screensaver: true });
       if (started) return;
     }
     openSheet({ pair: true });
   }
+
+  document.addEventListener("webOSRelaunch", () => {
+    const next = readLaunchAlbum();
+    if (!next || dead) return;
+    launchToken = next;
+    if (!booted) return;
+    void playLaunchAlbum(next);
+  }, true);
 
   window.addEventListener("keydown", onKey, true);
   window.addEventListener("keydown", noteActivity, true);

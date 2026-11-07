@@ -7,4 +7,6 @@ backup/
 .grok/
 *.zip
 *.ipk
+!public/*.zip
+!public/*.ipk
 .DS_Store

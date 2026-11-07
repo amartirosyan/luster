@@ -1,6 +1,6 @@
 {
   "id": "com.lustre.tv",
-  "version": "1.2.2",
+  "version": "1.2.5",
   "vendor": "Lustre",
   "type": "web",
   "main": "index.html",
@@ -12,6 +12,5 @@
   "iconColor": "#E8892E",
   "splashBackground": "splash.png",
   "disableBackHistoryAPI": true,
-  "requiredMemory": 80,
-  "requiredACG": []
+  "requiredMemory": 80
 }

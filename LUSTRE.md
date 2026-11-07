@@ -6,7 +6,7 @@ Do not rebuild it. Change the working app. Keep the motion smooth even if a phot
 
 ## Version
 
-Current release is **1.2.2**.
+Current release is **1.2.5**.
 
 On every publish, raise only the last number: 1.2.3, 1.2.4, and so on. Do not change 1 or 2 unless Armen asks.
 
@@ -31,12 +31,11 @@ Package with `ares-package` from `public/tv` into `public/`. The simulator zip i
 - A vertical photo sits on a blurred copy of itself. The preference is None, Smooth, Cinema, Feathered, or Color wash. It is stored on the TV. Color wash is the default until they pick another.
 - Fade about 2 seconds between photos. A photo should stay under 20 seconds and still feel like a glide.
 - The first photo starts the show. The rest load behind it.
-- The TV checks `https://lustre.show/version.json` and, with Developer Mode on, can download and install a newer IPK.
-- The opening screen shows the version once. It does not offer “Open here” or “On this device”.
+- The opening screen shows the version once. It does not offer “Open here” or “On this device”. The television does not download updates. The site does, from `version.json`.
 
 ## Do not forget
 
-- webOS cannot run a server on the TV. Home Assistant can launch the app. It cannot pull a Google album by itself. A shared house album would be a site the TVs poll, and that is not built.
+- webOS cannot run a server on the TV. Home Assistant launches Lustre with `system.launcher/launch`, app id `com.lustre.tv`, and `params.album` set to a saved album name or id. That album plays immediately. A matching name uses the newest album. Without `album`, a screensaver album still plays if one is set.
 - Pairing state is an in-memory map on the server. A phone and a TV can hit different copies and the code looks expired. A new code fixes that one time. Durable pairing storage is not built.
 - Motion on a real LG TV must stay on the GPU: transforms and the Web Animations API, not width, height, or a CSS blur every frame. The side image is a baked plate.
 - Fonts ship inside the app. Do not rely on the simulator’s fonts.
@@ -45,7 +44,7 @@ Package with `ares-package` from `public/tv` into `public/`. The simulator zip i
 
 ## Publish
 
-The site publish updates lustre.show. The television does not update until the new IPK is installed, or until a newer `version.json` is live and the TV’s update button runs. Developer Mode must be on for that install.
+The site publish updates lustre.show, including the television package and the simulator zip. The television does not update by itself. Install the new IPK from a computer, with Developer Mode on.
 
 Windows install, after the device is already set up:
 

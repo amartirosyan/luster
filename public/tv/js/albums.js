@@ -76,6 +76,7 @@ export async function saveAlbum(name, items) {
       id: `${id}:${order}`,
       albumId: id,
       order,
+      taken: Number(item.taken) || 0,
       title: item.title || "Photo",
       blob: item.blob,
     });
@@ -96,7 +97,14 @@ export async function loadAlbum(id) {
   const album = await request(db.transaction("albums").objectStore("albums").get(id));
   const photos = await request(db.transaction("photos").objectStore("photos").index("albumId").getAll(id));
   db.close();
-  photos.sort((a, b) => a.order - b.order);
+  photos.sort((a, b) => {
+    const ta = Number(a.taken) || 0;
+    const tb = Number(b.taken) || 0;
+    if (ta && tb && ta !== tb) return ta - tb;
+    if (ta && !tb) return -1;
+    if (!ta && tb) return 1;
+    return a.order - b.order;
+  });
   return { album, photos };
 }
 

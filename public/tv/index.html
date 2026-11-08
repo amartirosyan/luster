@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Lustre</title>
     <link rel="stylesheet" href="css/fonts.css?v=2" />
-    <link rel="stylesheet" href="css/app.css?v=21" />
+    <link rel="stylesheet" href="css/app.css?v=22" />
     <style>
       html, body { height: 100%; }
       body { margin: 0; }
@@ -15,8 +15,53 @@
     <main id="app"></main>
     <script src="js/stay-awake.js?v=2"></script>
     <script type="module">
-      import { mountPlayer } from "./js/player.js?v=46";
-      mountPlayer(document.getElementById("app"), { base: "" });
+      const LOCAL = "1.2.13";
+      const HOST = "https://lustre.show/tv/";
+
+      function newer(remote, local) {
+        const parts = (value) => String(value || "0").split(".").map((n) => Number.parseInt(n, 10) || 0);
+        const a = parts(remote);
+        const b = parts(local);
+        const n = Math.max(a.length, b.length);
+        for (let i = 0; i < n; i += 1) {
+          if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+        }
+        return false;
+      }
+
+      async function mount(remote, version) {
+        if (remote) {
+          for (const link of document.querySelectorAll("link[rel=stylesheet]")) {
+            const href = link.getAttribute("href") || "";
+            if (href.startsWith("css/")) link.href = HOST + href.split("?")[0] + "?v=" + version;
+          }
+        }
+        const src = (remote ? HOST : "./") + "js/player.js?v=" + version;
+        const mod = await import(src);
+        mod.mountPlayer(document.getElementById("app"), { base: remote ? HOST : "" });
+      }
+
+      const root = document.getElementById("app");
+      let version = LOCAL;
+      let remote = false;
+      try {
+        const res = await fetch("https://lustre.show/version.json", { cache: "no-store" });
+        if (res.ok) {
+          const body = await res.json();
+          if (body?.version && body.version !== LOCAL && newer(body.version, LOCAL)) {
+            version = body.version;
+            remote = true;
+          }
+        }
+      } catch {
+        /* stay on the copy installed on the television */
+      }
+      try {
+        await mount(remote, version);
+      } catch {
+        if (!remote) throw new Error("Lustre did not start");
+        await mount(false, LOCAL);
+      }
     </script>
   </body>
 </html>

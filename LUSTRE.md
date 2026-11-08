@@ -6,7 +6,7 @@ Do not rebuild it. Change the working app. Keep the motion smooth even if a phot
 
 ## Version
 
-Current release is **1.2.5**.
+Current release is **1.2.13**.
 
 On every publish, raise only the last number: 1.2.3, 1.2.4, and so on. Do not change 1 or 2 unless Armen asks.
 
@@ -30,8 +30,8 @@ Package with `ares-package` from `public/tv` into `public/`. The simulator zip i
 - Portrait motion glides between faces and the full photo. Randomize the move: in from the left, in from the right, or out from the center. Always keep some movement. Show the whole photo at the start or the end. Do not cut off faces. Ignore faces that are inside artwork or frames on a wall.
 - A vertical photo sits on a blurred copy of itself. The preference is None, Smooth, Cinema, Feathered, or Color wash. It is stored on the TV. Color wash is the default until they pick another.
 - Fade about 2 seconds between photos. A photo should stay under 20 seconds and still feel like a glide.
-- The first photo starts the show. The rest load behind it.
-- The opening screen shows the version once. It does not offer “Open here” or “On this device”. The television does not download updates. The site does, from `version.json`.
+- The first photo starts the show. The rest load behind it. Every show plays from the earliest photo taken to the latest. Saved albums keep that time.
+- The opening screen shows the version once. It does not offer “Open here” or “On this device”. LG does not let the app save a new package onto the television, so do not call the download service. From 1.2.8 on, a newer published version is loaded from lustre.show the next time the app opens.
 
 ## Do not forget
 
@@ -44,7 +44,7 @@ Package with `ares-package` from `public/tv` into `public/`. The simulator zip i
 
 ## Publish
 
-The site publish updates lustre.show, including the television package and the simulator zip. The television does not update by itself. Install the new IPK from a computer, with Developer Mode on.
+The site publish updates lustre.show. The home page links to `/install` for the Developer Mode steps. A television running 1.2.8 or newer picks up the next published version when Lustre opens again. Anything older has to be installed once from a computer, because the set blocks the download.
 
 Windows install, after the device is already set up:
 

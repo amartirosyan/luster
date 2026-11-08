@@ -11,10 +11,10 @@ import {
 } from "./engine.js?v=9";
 import { createDetector } from "./detect.js?v=12";
 import { createGooglePhotos, explainGoogleError } from "./google.js?v=25";
-import { deleteAlbum, listAlbums, loadAlbum, renameAlbum, saveAlbum, screensaverId, setScreensaver } from "./albums.js?v=2";
+import { deleteAlbum, listAlbums, loadAlbum, renameAlbum, saveAlbum, screensaverId, setScreensaver } from "./albums.js?v=3";
 import qrcode from "./qrcode.js?v=2";
 
-const REV = "1.2.5";
+const REV = "1.2.13";
 const BLURS = [
   { id: "none", label: "None" },
   { id: "smooth", label: "Smooth", radius: 8, passes: 2, sat: 1.05, dark: 0.22 },
@@ -31,6 +31,18 @@ function storedBlur() {
     /* the television kept the choice private */
   }
   return "wash";
+}
+
+function newerVersion(remote, local) {
+  const parts = (value) => String(value || "0").split(".").map((n) => Number.parseInt(n, 10) || 0);
+  const a = parts(remote);
+  const b = parts(local);
+  const n = Math.max(a.length, b.length);
+  for (let i = 0; i < n; i += 1) {
+    if ((a[i] || 0) > (b[i] || 0)) return true;
+    if ((a[i] || 0) < (b[i] || 0)) return false;
+  }
+  return false;
 }
 
 function drawQr(canvas, text) {
@@ -115,6 +127,7 @@ export function mountPlayer(root, options = {}) {
   const motions = new Map();
   const useGpu = typeof HTMLElement !== "undefined" && typeof HTMLElement.prototype.animate === "function";
   let blurStyle = storedBlur();
+  let updateOffer = null;
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
   if (reduced) style = "still";
 
@@ -484,20 +497,51 @@ export function mountPlayer(root, options = {}) {
     const code = e.keyCode;
     const key = e.key;
     const known =
-      ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", " ", "Escape"].includes(key) ||
+      ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Left", "Right", "Up", "Down", "Enter", " ", "Escape"].includes(key) ||
       ["1", "2", "3", "4", "5"].includes(key) ||
       [37, 38, 39, 40, 13, 461, 415, 19, 413, 403, 404, 405, 406, 427, 428].includes(code);
     if (sheetOpen) {
       if (key === "Escape" || code === 461 || code === 413) {
         e.preventDefault();
-        closeSheet();
+        if (albumMode) showMenu("");
+        else closeSheet();
         return;
       }
-      const onControl = e.target instanceof Element && !!e.target.closest("button, a");
-      if (!onControl && (key === "Enter" || key === " " || code === 13)) e.preventDefault();
+      const typing = document.activeElement instanceof HTMLInputElement;
+      const down = key === "ArrowDown" || key === "Down" || key === "ArrowRight" || key === "Right" || code === 40 || code === 39 || code === 428;
+      const up = key === "ArrowUp" || key === "Up" || key === "ArrowLeft" || key === "Left" || code === 38 || code === 37 || code === 427;
+      if (typing && (key === "ArrowLeft" || key === "ArrowRight" || code === 37 || code === 39)) return;
+      if (down || up) {
+        e.preventDefault();
+        moveFocus(sheetControls(), down ? 1 : -1);
+        return;
+      }
+      if (key === "Enter" || key === " " || code === 13) {
+        const current = document.activeElement;
+        if (current instanceof HTMLButtonElement || current instanceof HTMLInputElement) return;
+        e.preventDefault();
+        sheetControls()[0]?.focus();
+      }
       return;
     }
     if (!known) return;
+    const hudOn = document.activeElement instanceof Element && !!document.activeElement.closest(".nl-controls");
+    if (hudOn) {
+      const down = key === "ArrowDown" || key === "Down" || key === "ArrowRight" || key === "Right" || code === 40 || code === 39 || code === 428;
+      const up = key === "ArrowUp" || key === "Up" || key === "ArrowLeft" || key === "Left" || code === 38 || code === 37 || code === 427;
+      if (code === 461 || key === "Escape" || code === 413) {
+        e.preventDefault();
+        document.activeElement.blur();
+        return;
+      }
+      if (down || up) {
+        e.preventDefault();
+        bumpHud();
+        moveFocus(hudControls(), down ? 1 : -1);
+        return;
+      }
+      if (key === "Enter" || key === " " || code === 13) return;
+    }
     const fromButton = e.target instanceof Element && !!e.target.closest("button");
     if (fromButton && (key === "Enter" || key === " " || code === 13)) {
       bumpHud();
@@ -518,16 +562,16 @@ export function mountPlayer(root, options = {}) {
       }
       return;
     }
-    if (key === "ArrowLeft" || code === 37) jump(-1);
-    else if (key === "ArrowRight" || code === 39) jump(1);
-    else if (key === "ArrowUp" || code === 38 || code === 427) {
-      if (style === "prints" || style === "strip") userZoom = Math.min(2.2, userZoom + 0.12);
-      else cycleSpeed();
+    if (key === "ArrowLeft" || key === "Left" || code === 37) jump(-1);
+    else if (key === "ArrowRight" || key === "Right" || code === 39) jump(1);
+    else if (key === "ArrowUp" || key === "Up" || code === 38 || code === 427) {
+      e.preventDefault();
       bumpHud();
-    } else if (key === "ArrowDown" || code === 40 || code === 428) {
-      if (style === "prints" || style === "strip") userZoom = Math.max(0.7, userZoom - 0.12);
-      else cycleSpeed();
+      moveFocus(hudControls(), -1);
+    } else if (key === "ArrowDown" || key === "Down" || code === 40 || code === 428) {
+      e.preventDefault();
       bumpHud();
+      moveFocus(hudControls(), 1);
     } else if (key === "Enter" || key === " " || code === 13 || code === 415 || code === 19) {
       paused = !paused;
       bumpHud();
@@ -845,9 +889,7 @@ export function mountPlayer(root, options = {}) {
   const qrCanvas = document.createElement("canvas");
   qrCanvas.className = "nl-qr-canvas";
   qrCanvas.setAttribute("aria-label", "Code for this television");
-  const qrUrl = document.createElement("p");
-  qrUrl.className = "nl-qr-url";
-  qrWrap.append(qrCanvas, qrUrl);
+  qrWrap.append(qrCanvas);
   const originLabel = document.createElement("p");
   originLabel.className = "nl-sheet-origin-label";
   originLabel.hidden = true;
@@ -871,6 +913,10 @@ export function mountPlayer(root, options = {}) {
   const prefsBtn = document.createElement("button");
   prefsBtn.type = "button";
   prefsBtn.textContent = "Preferences";
+  const updateBtn = document.createElement("button");
+  updateBtn.type = "button";
+  updateBtn.hidden = true;
+  updateBtn.textContent = "Update";
   const saveBtn = document.createElement("button");
   saveBtn.type = "button";
   saveBtn.hidden = true;
@@ -888,7 +934,7 @@ export function mountPlayer(root, options = {}) {
   const homeVersion = document.createElement("p");
   homeVersion.className = "nl-home-version";
   homeVersion.textContent = REV;
-  actions.append(chooseBtn, albumsBtn, prefsBtn, saverBtn, saveBtn, signBtn, closeBtn);
+  actions.append(chooseBtn, albumsBtn, prefsBtn, updateBtn, saverBtn, saveBtn, signBtn, closeBtn);
   const albumPanel = document.createElement("div");
   albumPanel.className = "nl-albums";
   albumPanel.hidden = true;
@@ -912,9 +958,12 @@ export function mountPlayer(root, options = {}) {
   const prefVersion = document.createElement("p");
   prefVersion.className = "nl-album-count";
   prefVersion.textContent = `Version ${REV}`;
+  const prefUpdate = document.createElement("button");
+  prefUpdate.type = "button";
+  prefUpdate.textContent = "Check for update";
   const prefNote = document.createElement("p");
   prefNote.className = "nl-albums-empty";
-  prefPanel.append(prefBack, prefLead, prefChoices, prefVersion, prefNote);
+  prefPanel.append(prefBack, prefLead, prefChoices, prefVersion, prefUpdate, prefNote);
   card.append(heading, blurb, qrWrap, actions, albumPanel, prefPanel, note, homeVersion, originLabel, originValue);
   sheet.append(card);
   root.append(sheet);
@@ -926,12 +975,8 @@ export function mountPlayer(root, options = {}) {
     if (url) codeUrl = url;
     qrWrap.hidden = !on || albumMode;
     card.classList.toggle("is-code", on && !albumMode);
-    if (!on) {
-      qrUrl.textContent = "";
-      return;
-    }
+    if (!on) return;
     drawQr(qrCanvas, url);
-    qrUrl.textContent = url;
   }
 
   function paintSign() {
@@ -964,12 +1009,38 @@ export function mountPlayer(root, options = {}) {
     originValue.hidden = !origin;
   }
 
+  function visibleControls(rootEl) {
+    return [...rootEl.querySelectorAll("button, a, input")].filter((el) => {
+      if (el.disabled || el.hidden) return false;
+      if (el.closest("[hidden]")) return false;
+      return true;
+    });
+  }
+
+  function sheetControls() {
+    return visibleControls(sheet);
+  }
+
+  function hudControls() {
+    return visibleControls(controls);
+  }
+
+  function moveFocus(items, delta) {
+    if (!items.length) return;
+    const current = items.indexOf(document.activeElement);
+    const start = current < 0 ? (delta > 0 ? -1 : 0) : current;
+    const next = items[(start + delta + items.length) % items.length];
+    next.focus();
+    next.scrollIntoView({ block: "nearest" });
+  }
+
   function openSheet(opts = {}) {
     sheetOpen = true;
     sheet.hidden = false;
     paintSign();
     if (photos.length) bumpHud();
     if (opts.pair && !picking) void startPhonePair();
+    requestAnimationFrame(() => sheetControls()[0]?.focus());
   }
 
   function closeSheet(force = false) {
@@ -1002,7 +1073,11 @@ export function mountPlayer(root, options = {}) {
   }
 
   async function persistCurrent(name) {
-    const items = photos.filter((photo) => photo.blob).map((photo) => ({ blob: photo.blob, title: photo.title }));
+    const items = photos.filter((photo) => photo.blob).map((photo) => ({
+      blob: photo.blob,
+      title: photo.title,
+      taken: photo.taken || 0,
+    }));
     if (!items.length) throw new Error("Nothing to save");
     const album = await saveAlbum(name || albumNameNow(), items);
     photosSaved = true;
@@ -1032,6 +1107,114 @@ export function mountPlayer(root, options = {}) {
     dropMotion();
   }
 
+  function takenMillis(value) {
+    const ms = Date.parse(String(value || ""));
+    return Number.isFinite(ms) ? ms : 0;
+  }
+
+  function takenLabel(ms) {
+    if (!ms) return "";
+    return new Date(ms).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }
+
+  function oldestFirstItems(items) {
+    return [...items].sort((a, b) => {
+      const ta = takenMillis(a.createTime);
+      const tb = takenMillis(b.createTime);
+      if (ta && tb && ta !== tb) return ta - tb;
+      if (ta && !tb) return -1;
+      if (!ta && tb) return 1;
+      return 0;
+    });
+  }
+
+  async function jpegTaken(blob) {
+    if (!blob || typeof blob.slice !== "function") return 0;
+    let head;
+    try {
+      head = await blob.slice(0, 65536).arrayBuffer();
+    } catch {
+      return 0;
+    }
+    const view = new DataView(head);
+    if (view.byteLength < 4 || view.getUint16(0) !== 0xffd8) return 0;
+    let offset = 2;
+    while (offset + 4 < view.byteLength) {
+      const marker = view.getUint16(offset);
+      const size = view.getUint16(offset + 2);
+      if (marker === 0xffe1) {
+        const start = offset + 4;
+        if (start + 6 <= view.byteLength) {
+          const sig = String.fromCharCode(...new Uint8Array(head, start, 6));
+          if (sig.startsWith("Exif")) return exifTaken(view, start + 6);
+        }
+      }
+      if (marker === 0xffda || marker === 0xffd9 || size < 2) break;
+      offset += 2 + size;
+    }
+    return 0;
+  }
+
+  function exifTaken(view, tiff) {
+    if (tiff + 8 > view.byteLength) return 0;
+    const le = view.getUint16(tiff) === 0x4949;
+    const u16 = (at) => view.getUint16(at, le);
+    const u32 = (at) => view.getUint32(at, le);
+    if (u16(tiff + 2) !== 42) return 0;
+    const readIfd = (ifd) => {
+      const found = { original: "", digitized: "", modified: "", exifPtr: 0 };
+      if (ifd < tiff || ifd + 2 > view.byteLength) return found;
+      const count = u16(ifd);
+      for (let i = 0; i < count; i += 1) {
+        const entry = ifd + 2 + i * 12;
+        if (entry + 12 > view.byteLength) break;
+        const tag = u16(entry);
+        const type = u16(entry + 2);
+        const num = u32(entry + 4);
+        let value = u32(entry + 8);
+        if (type === 2 && num > 4) value = tiff + value;
+        const text = () => {
+          if (type !== 2 || num < 2 || value + num > view.byteLength) return "";
+          let out = "";
+          for (let c = 0; c < num - 1; c += 1) out += String.fromCharCode(view.getUint8(value + c));
+          return out;
+        };
+        if (tag === 0x9003) found.original = text();
+        else if (tag === 0x9004) found.digitized = text();
+        else if (tag === 0x0132) found.modified = text();
+        else if (tag === 0x8769) found.exifPtr = tiff + u32(entry + 8);
+      }
+      return found;
+    };
+    const first = readIfd(tiff + u32(tiff + 4));
+    const nested = first.exifPtr ? readIfd(first.exifPtr) : first;
+    const raw = nested.original || nested.digitized || first.modified || "";
+    const match = /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(raw);
+    if (!match) return 0;
+    const ms = new Date(+match[1], +match[2] - 1, +match[3], +match[4], +match[5], +match[6]).getTime();
+    return Number.isFinite(ms) ? ms : 0;
+  }
+
+  async function oldestFirst(records) {
+    const dated = [];
+    for (const record of records) {
+      let taken = Number(record.taken) || 0;
+      if (!taken) taken = await jpegTaken(record.blob);
+      dated.push({ ...record, taken });
+    }
+    dated.sort((a, b) => {
+      if (a.taken && b.taken && a.taken !== b.taken) return a.taken - b.taken;
+      if (a.taken && !b.taken) return -1;
+      if (!a.taken && b.taken) return 1;
+      return (a.order || 0) - (b.order || 0);
+    });
+    return dated;
+  }
+
   async function playStored(id, opts = {}) {
     loading = true;
     started = false;
@@ -1047,7 +1230,7 @@ export function mountPlayer(root, options = {}) {
       note.textContent = err?.message || "Could not open the album";
       return;
     }
-    const records = stored.photos || [];
+    const records = await oldestFirst(stored.photos || []);
     if (!records.length) {
       loading = false;
       status.hidden = true;
@@ -1072,7 +1255,8 @@ export function mountPlayer(root, options = {}) {
             src,
             blob: record.blob,
             title: record.title || "Photo",
-            date: "",
+            date: takenLabel(record.taken),
+            taken: record.taken || 0,
             natW: img.naturalWidth,
             natH: img.naturalHeight,
             faces,
@@ -1220,6 +1404,7 @@ export function mountPlayer(root, options = {}) {
       albumList.append(row);
     }
     albumList.querySelector("button")?.focus();
+    if (!albumList.querySelector("button")) albumBack.focus();
   }
 
   function showMenu(which) {
@@ -1240,11 +1425,13 @@ export function mountPlayer(root, options = {}) {
       qrWrap.hidden = true;
       heading.textContent = "Preferences";
       paintPrefs();
+      void checkUpdate();
       return;
     }
     heading.textContent = codeUrl ? "Scan with your phone" : "Lustre";
     if (codeUrl) showCode(true, codeUrl);
     paintSign();
+    requestAnimationFrame(() => sheetControls()[0]?.focus());
   }
 
   function applyBlur(id) {
@@ -1268,7 +1455,36 @@ export function mountPlayer(root, options = {}) {
       button.addEventListener("click", () => applyBlur(item.id));
       prefChoices.append(button);
     }
-    prefVersion.textContent = `Version ${REV}`;
+    prefVersion.textContent = updateOffer ? `Version ${REV} · ${updateOffer.version} is ready` : `Version ${REV}`;
+    prefUpdate.textContent = updateOffer ? `Update ${updateOffer.version}` : "Check for update";
+    updateBtn.hidden = !updateOffer;
+    if (updateOffer) updateBtn.textContent = `Update ${updateOffer.version}`;
+    prefChoices.querySelector("button")?.focus();
+  }
+
+  function installOffer() {
+    if (!updateOffer?.version) {
+      prefNote.textContent = "This is the latest version.";
+      return;
+    }
+    prefNote.textContent = "Opening the update…";
+    location.reload();
+  }
+
+  async function checkUpdate() {
+    try {
+      const res = await fetch("https://lustre.show/version.json", { cache: "no-store" });
+      if (!res.ok) return;
+      const body = await res.json();
+      updateOffer = newerVersion(body.version, REV) && body.ipk ? body : null;
+    } catch {
+      updateOffer = null;
+    }
+    if (!prefPanel.hidden) paintPrefs();
+    else {
+      updateBtn.hidden = !updateOffer;
+      if (updateOffer) updateBtn.textContent = `Update ${updateOffer.version}`;
+    }
   }
 
   function showAlbumList(on) {
@@ -1317,6 +1533,11 @@ export function mountPlayer(root, options = {}) {
   albumBack.addEventListener("click", () => showAlbumList(false));
   prefsBtn.addEventListener("click", () => showMenu("prefs"));
   prefBack.addEventListener("click", () => showMenu(""));
+  prefUpdate.addEventListener("click", () => installOffer());
+  updateBtn.addEventListener("click", () => {
+    showMenu("prefs");
+    installOffer();
+  });
   saveBtn.addEventListener("click", () => {
     saveBtn.textContent = "Saving…";
     persistCurrent().then(() => {
@@ -1515,6 +1736,7 @@ export function mountPlayer(root, options = {}) {
   }
 
   async function takeGoogleItems(images) {
+    images = oldestFirstItems(images);
     reel = "google";
     started = false;
     loading = true;
@@ -1588,6 +1810,7 @@ export function mountPlayer(root, options = {}) {
             src,
             blob,
             title: (fileInfo.filename || "Photo").replace(/\.[^.]+$/, ""),
+            taken: takenMillis(item.createTime),
             date: item.createTime
               ? new Date(item.createTime).toLocaleDateString(undefined, {
                   day: "numeric",
@@ -1740,6 +1963,7 @@ export function mountPlayer(root, options = {}) {
     }
     if (dead) return;
     holdAwake();
+    void checkUpdate();
     const saver = await screensaverId().catch(() => "");
     saverAlbumId = saver || "";
     booted = true;

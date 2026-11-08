@@ -262,9 +262,14 @@ body,
   transform: scale(0.96);
 }
 
-.nl-controls button:focus-visible {
-  outline: 2px solid var(--nl-amber);
-  outline-offset: 2px;
+.nl-sheet button:focus,
+.nl-controls button:focus,
+.nl-album-actions button:focus,
+.nl-albums > button:focus,
+.nl-album-name:focus {
+  outline: 3px solid #f4efe6;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 3px #c9853a;
 }
 
 .nl-sheet {

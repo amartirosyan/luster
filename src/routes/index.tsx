@@ -17,7 +17,7 @@ function latestPack(version: string): Pack {
 }
 
 function Downloads() {
-  const [pack, setPack] = useState<Pack>(() => latestPack("1.2.5"));
+  const [pack, setPack] = useState<Pack>(() => latestPack("1.2.13"));
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ function Home() {
     if (!script) {
       script = document.createElement("script");
       script.type = "module";
-      script.src = "/tv/js/preview-bridge.js?v=36";
+      script.src = "/tv/js/preview-bridge.js?v=44";
       script.dataset.nlBridge = "1";
       script.addEventListener("load", mount);
       document.head.appendChild(script);
@@ -94,6 +94,7 @@ function Home() {
       <nav className="lustre-legal" aria-label="Legal">
         <a href="/privacy">Privacy</a>
         <a href="/terms">Terms</a>
+        <a href="/install">Install</a>
         <Downloads />
       </nav>
     </>

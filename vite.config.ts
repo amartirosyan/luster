@@ -12,6 +12,7 @@ import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
 import { claimPhonePair, markPhonePairOpened, newPair, readPhonePair } from "./server/pair-store";
+import { handleShareRequest, shareCorsHeaders } from "./server/share-http";
 
 const pickerLists = new Map<string, { state: string; body: string }>();
 
@@ -32,6 +33,46 @@ function pickerProxyPlugin(): Plugin {
       server.middlewares.use(async (req, res, next) => {
         const raw = req.url || "";
         const path = raw.split("?")[0];
+        if (path.startsWith("/api/share")) {
+          for (const [key, value] of Object.entries(shareCorsHeaders())) {
+            if (key === "content-type") continue;
+            res.setHeader(key, value);
+          }
+          if (req.method === "OPTIONS") {
+            res.statusCode = 204;
+            res.end();
+            return;
+          }
+          let payload: unknown = {};
+          if (req.method && req.method !== "GET" && req.method !== "HEAD") {
+            const rawBody = await readRequestBody(req);
+            try {
+              payload = JSON.parse(rawBody || "{}");
+            } catch {
+              payload = {};
+            }
+          }
+          const incoming = new URL(raw, "http://localhost");
+          const result = await handleShareRequest({
+            method: req.method || "GET",
+            pathname: path,
+            searchParams: incoming.searchParams,
+            header: (name) => {
+              const value = req.headers[name.toLowerCase()];
+              return Array.isArray(value) ? String(value[0] || "") : String(value || "");
+            },
+            body: payload,
+          });
+          if (result.bytes) {
+            res.statusCode = result.status;
+            res.setHeader("Content-Type", result.contentType || "image/jpeg");
+            res.setHeader("Cache-Control", "private, no-store");
+            res.end(Buffer.from(result.bytes));
+            return;
+          }
+          sendJson(res, result.status, result.json ?? {});
+          return;
+        }
         if (path === "/api/pair" || path === "/api/pair/claim" || path === "/api/pair/open") {
           res.setHeader("Access-Control-Allow-Origin", "*");
           res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -43,7 +84,19 @@ function pickerProxyPlugin(): Plugin {
           }
         }
         if (req.method === "POST" && path === "/api/pair") {
-          sendJson(res, 200, { id: newPair() });
+          const rawBody = await readRequestBody(req);
+          let payload: { purpose?: string; tvId?: string } = {};
+          try {
+            payload = rawBody ? JSON.parse(rawBody) : {};
+          } catch {
+            payload = {};
+          }
+          try {
+            sendJson(res, 200, { id: await newPair(payload) });
+          } catch (err) {
+            const status = err && typeof err === "object" && "status" in err ? Number((err as { status: number }).status) : 500;
+            sendJson(res, status, { error: err instanceof Error ? err.message : "Could not make a code." });
+          }
           return;
         }
         if (req.method === "POST" && path === "/api/pair/open") {
@@ -59,7 +112,7 @@ function pickerProxyPlugin(): Plugin {
             sendJson(res, 400, { error: "Missing code." });
             return;
           }
-          const result = markPhonePairOpened(id);
+          const result = await markPhonePairOpened(id);
           sendJson(res, result.error ? 404 : 200, result);
           return;
         }
@@ -88,7 +141,7 @@ function pickerProxyPlugin(): Plugin {
           const incoming = new URL(raw, "http://localhost");
           const cb = incoming.searchParams.get("cb") || "";
           const body = incoming.searchParams.get("new") === "1"
-            ? { id: newPair() }
+            ? { id: await newPair() }
             : await readPhonePair(incoming.searchParams.get("id") || "");
           if (/^nlPair[A-Za-z0-9]+$/.test(cb)) {
             res.statusCode = 200;

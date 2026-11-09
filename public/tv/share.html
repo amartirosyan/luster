@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lustre shared album</title>
+    <link rel="stylesheet" href="css/fonts.css" />
+    <style>
+      html, body { margin: 0; background: #090909; color: #f4efe6; }
+      body {
+        font-family: "Lustre Sans", "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+        padding: 24px;
+      }
+      main { width: min(560px, 100%); margin: 0 auto; }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      p { line-height: 1.45; }
+      a { color: #d7a15a; }
+      button, input {
+        font: inherit;
+        color: inherit;
+      }
+      button, .code {
+        min-height: 48px;
+      }
+      button {
+        border: 1px solid rgba(244, 239, 230, 0.28);
+        background: transparent;
+        padding: 0 14px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 13px;
+      }
+      button.primary {
+        background: #c9853a;
+        color: #1a1612;
+        border-color: transparent;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 48px;
+        padding: 0 12px;
+        border: 1px solid rgba(244, 239, 230, 0.4);
+        background: #141210;
+      }
+      .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+      .card {
+        border: 1px solid rgba(244, 239, 230, 0.16);
+        padding: 14px;
+        margin: 12px 0;
+      }
+      .muted { color: #a39b90; font-size: 14px; }
+      .code {
+        display: block;
+        margin: 8px 0;
+        font-size: 28px;
+        letter-spacing: 0.18em;
+      }
+      #note { min-height: 1.4em; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Lustre</h1>
+      <p id="lead">One album, many televisions. Each television plays at its own pace.</p>
+      <div id="app"></div>
+      <p id="note" class="muted"></p>
+    </main>
+    <script type="module" src="js/share.js?v=1"></script>
+  </body>
+</html>

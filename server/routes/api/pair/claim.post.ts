@@ -1,5 +1,6 @@
 import { defineEventHandler, readBody, setHeader, setResponseStatus } from "h3";
-import { claimPhonePair } from "../../../pair-store";
+import { HttpError } from "../../../google-picker.ts";
+import { claimPhonePair } from "../../../pair-store.ts";
 
 export default defineEventHandler(async (event) => {
   setHeader(event, "Cache-Control", "no-store");
@@ -17,8 +18,11 @@ export default defineEventHandler(async (event) => {
   }
   try {
     return await claimPhonePair(id, token, Number(payload.expiresIn) || 3600);
-  } catch {
-    setResponseStatus(event, 502);
-    return { error: "Could not reach Google Photos." };
+  } catch (err) {
+    const status = err instanceof HttpError ? err.status : 502;
+    setResponseStatus(event, status);
+    return {
+      error: status === 502 ? "Could not reach Google Photos." : err instanceof Error ? err.message : "Could not reach Google Photos.",
+    };
   }
 });

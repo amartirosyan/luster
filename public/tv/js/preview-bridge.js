@@ -1,4 +1,4 @@
-import { mountPlayer } from "./player.js?v=54";
+import { mountPlayer } from "./player.js?v=55";
 
 window.__nlMount = function mountPreview() {
   document.querySelectorAll("[data-nl-root]").forEach((el) => {

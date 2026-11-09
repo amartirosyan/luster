@@ -18,7 +18,7 @@ function Privacy() {
     <article className="lustre-doc">
       <p className="lustre-doc-kicker">Lustre</p>
       <h1>Privacy Policy</h1>
-      <p className="lustre-doc-date">Effective 3 November 2026</p>
+      <p className="lustre-doc-date">Effective 9 November 2026</p>
       <p>
         Lustre is a television photo show at <a href="https://lustre.show">lustre.show</a>.
         This policy explains what we receive when you connect Google Photos, what we do with
@@ -65,11 +65,21 @@ function Privacy() {
 
       <h2>Where it is stored</h2>
       <p>
-        The television keeps saved albums in its own local storage. Lustre’s server does not
-        keep a library of your photos. During pairing, the server holds the access token in
-        memory only long enough for the television to receive the photos you selected. That
-        session ends when the handoff finishes, when it expires, or when the server restarts.
-        A new code on the television starts a new session and is not tied to your account.
+        The television keeps saved albums in its own local storage. A show you send to one
+        television is downloaded by that television. For that one-television handoff, the
+        server keeps the short-lived Google access token only until the television has
+        received the selection, the code expires, or you start again. The token is not a
+        standing login.
+      </p>
+      <p>
+        A shared album is different. The pictures you select are copied onto Lustre’s server
+        so every television you add can download them, including a television in another
+        house. Google’s photo links expire after about an hour, so the server keeps the
+        picture bytes themselves. The Google token stays on the server for that save and is
+        deleted when the save finishes or the sign-in expires. It is not sent to the
+        televisions. Each television gets its own membership, which you can remove. The
+        join code adds a television; making a new code stops future joins and does not
+        remove televisions already in the album.
       </p>
 
       <h2>Who else sees it</h2>
@@ -83,9 +93,12 @@ function Privacy() {
       <h2>How to remove it</h2>
       <p>
         On the television, open Albums and remove an album. That deletes those copies from
-        the television. To stop Lustre from asking Google again, revoke Lustre at{" "}
+        the television. Leave stops that television from receiving new shared photos and
+        keeps what it already downloaded. On the phone, remove a photo or delete the shared
+        album to delete those copies from Lustre’s server. Televisions drop a removed photo
+        the next time they check in. To stop Lustre from asking Google again, revoke Lustre
+        at{" "}
         <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.
-        The server does not keep the pictures after the television has downloaded them.
       </p>
 
       <h2>Contact</h2>

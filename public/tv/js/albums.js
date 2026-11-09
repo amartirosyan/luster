@@ -136,3 +136,162 @@ export async function deleteAlbum(id) {
   await txDone(tx);
   db.close();
 }
+
+export async function deviceId() {
+  const db = await openDb();
+  const existing = await request(db.transaction("settings").objectStore("settings").get("tvId"));
+  if (existing) {
+    db.close();
+    return existing;
+  }
+  const id = newId().replace(/[^A-Za-z0-9_-]/g, "").slice(0, 80);
+  const safe = id.length >= 8 ? id : `${id}television`;
+  const tx = db.transaction("settings", "readwrite");
+  tx.objectStore("settings").put(safe, "tvId");
+  await txDone(tx);
+  db.close();
+  return safe;
+}
+
+export async function findSharedAlbum(remoteId) {
+  const db = await openDb();
+  const albums = await request(db.transaction("albums").objectStore("albums").getAll());
+  db.close();
+  return albums.find((album) => album.remoteId === remoteId) || null;
+}
+
+export async function saveSharedMembership({ remoteId, name, revision, memberToken }) {
+  const db = await openDb();
+  const albums = await request(db.transaction("albums").objectStore("albums").getAll());
+  let album = albums.find((item) => item.remoteId === remoteId);
+  if (!album) {
+    album = {
+      id: newId(),
+      name: name || "Shared album",
+      created: Date.now(),
+      count: 0,
+      remoteId,
+      revision: Number(revision) || 0,
+      memberToken,
+      shared: true,
+    };
+  } else {
+    album.name = name || album.name;
+    album.revision = Number(revision) || album.revision || 0;
+    album.memberToken = memberToken || album.memberToken;
+    album.shared = true;
+    album.left = false;
+  }
+  const tx = db.transaction("albums", "readwrite");
+  tx.objectStore("albums").put(album);
+  await txDone(tx);
+  db.close();
+  return album;
+}
+
+async function putAlbumCount(albumId) {
+  const db = await openDb();
+  const album = await request(db.transaction("albums").objectStore("albums").get(albumId));
+  const photos = await request(db.transaction("photos").objectStore("photos").index("albumId").getAll(albumId));
+  if (!album) {
+    db.close();
+    return null;
+  }
+  album.count = photos.length;
+  const tx = db.transaction("albums", "readwrite");
+  tx.objectStore("albums").put(album);
+  await txDone(tx);
+  db.close();
+  return album;
+}
+
+export async function addSharedPhoto(albumId, item) {
+  const db = await openDb();
+  const id = `${albumId}:${item.remoteId}`;
+  const tx = db.transaction("photos", "readwrite");
+  tx.objectStore("photos").put({
+    id,
+    albumId,
+    remoteId: item.remoteId,
+    order: Number(item.taken) || 0,
+    taken: Number(item.taken) || 0,
+    title: item.title || "Photo",
+    blob: item.blob,
+  });
+  await txDone(tx);
+  db.close();
+  return putAlbumCount(albumId);
+}
+
+export async function removeSharedPhotos(albumId, remoteIds) {
+  if (!remoteIds?.length) return putAlbumCount(albumId);
+  const db = await openDb();
+  const tx = db.transaction("photos", "readwrite");
+  for (const remoteId of remoteIds) tx.objectStore("photos").delete(`${albumId}:${remoteId}`);
+  await txDone(tx);
+  db.close();
+  return putAlbumCount(albumId);
+}
+
+export async function setSharedMeta(albumId, meta) {
+  const db = await openDb();
+  const album = await request(db.transaction("albums").objectStore("albums").get(albumId));
+  if (!album) {
+    db.close();
+    return null;
+  }
+  if (meta.name) album.name = meta.name;
+  if (meta.revision != null) album.revision = Number(meta.revision) || 0;
+  const tx = db.transaction("albums", "readwrite");
+  tx.objectStore("albums").put(album);
+  await txDone(tx);
+  db.close();
+  return album;
+}
+
+export async function leaveSharedLocal(albumId) {
+  const db = await openDb();
+  const album = await request(db.transaction("albums").objectStore("albums").get(albumId));
+  if (!album) {
+    db.close();
+    return null;
+  }
+  album.shared = false;
+  album.memberToken = "";
+  album.left = true;
+  const tx = db.transaction("albums", "readwrite");
+  tx.objectStore("albums").put(album);
+  await txDone(tx);
+  db.close();
+  return album;
+}
+
+export async function rememberLeave(entry) {
+  const db = await openDb();
+  const current = (await request(db.transaction("settings").objectStore("settings").get("pendingLeaves"))) || [];
+  const next = current.filter((item) => item.albumId !== entry.albumId);
+  next.push(entry);
+  const tx = db.transaction("settings", "readwrite");
+  tx.objectStore("settings").put(next, "pendingLeaves");
+  await txDone(tx);
+  db.close();
+}
+
+export async function pendingLeaves() {
+  const db = await openDb();
+  const current = await request(db.transaction("settings").objectStore("settings").get("pendingLeaves"));
+  db.close();
+  return Array.isArray(current) ? current : [];
+}
+
+export async function forgetLeave(albumId) {
+  const db = await openDb();
+  const current = (await request(db.transaction("settings").objectStore("settings").get("pendingLeaves"))) || [];
+  const tx = db.transaction("settings", "readwrite");
+  tx.objectStore("settings").put(
+    current.filter((item) => item.albumId !== albumId),
+    "pendingLeaves",
+  );
+  await txDone(tx);
+  db.close();
+}

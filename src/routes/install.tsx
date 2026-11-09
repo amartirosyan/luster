@@ -15,7 +15,7 @@ export const Route = createFileRoute("/install")({
 });
 
 function Install() {
-  const [version, setVersion] = useState("1.2.13");
+  const [version, setVersion] = useState("1.2.14");
 
   useEffect(() => {
     let gone = false;
@@ -138,7 +138,8 @@ ares-launch --device tv com.lustre.tv`}</code>
         Home Assistant can open Lustre and play an album that is already saved on that
         television. Add the LG webOS TV integration first and accept the connection on the
         TV. Home Assistant does not install Lustre, and it does not copy photos. Each set
-        keeps its own albums.
+        keeps its own albums. A shared album plays the same way once it is on that
+        television, and each television keeps its own pace.
       </p>
       <p>
         Use the album name shown in Lustre, or its id. Capital letters do not matter. If two

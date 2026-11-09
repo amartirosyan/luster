@@ -11,10 +11,28 @@ import {
 } from "./engine.js?v=9";
 import { createDetector } from "./detect.js?v=12";
 import { createGooglePhotos, explainGoogleError } from "./google.js?v=25";
-import { deleteAlbum, listAlbums, loadAlbum, renameAlbum, saveAlbum, screensaverId, setScreensaver } from "./albums.js?v=3";
+import {
+  addSharedPhoto,
+  deleteAlbum,
+  deviceId,
+  forgetLeave,
+  leaveSharedLocal,
+  listAlbums,
+  loadAlbum,
+  pendingLeaves,
+  rememberLeave,
+  removeSharedPhotos,
+  renameAlbum,
+  saveAlbum,
+  saveSharedMembership,
+  screensaverId,
+  setScreensaver,
+  setSharedMeta,
+} from "./albums.js?v=4";
 import qrcode from "./qrcode.js?v=2";
+import { planCatchUp, SHARE_POLL_MS } from "./share-sync.js?v=1";
 
-const REV = "1.2.13";
+const REV = "1.2.14";
 const BLURS = [
   { id: "none", label: "None" },
   { id: "smooth", label: "Smooth", radius: 8, passes: 2, sat: 1.05, dark: 0.22 },
@@ -128,6 +146,9 @@ export function mountPlayer(root, options = {}) {
   const useGpu = typeof HTMLElement !== "undefined" && typeof HTMLElement.prototype.animate === "function";
   let blurStyle = storedBlur();
   let updateOffer = null;
+  let shareTimer = 0;
+  let apiOrigin = "";
+  const syncingAlbums = new Set();
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
   if (reduced) style = "still";
 
@@ -454,7 +475,11 @@ export function mountPlayer(root, options = {}) {
   }
 
   function advance() {
-    index = (index + 1) % photos.length;
+    if (!photos.length) return;
+    const start = index;
+    do {
+      index = (index + 1) % photos.length;
+    } while (photos[index]?.skip && index !== start);
     clock = 0;
     fading = false;
     fadeU = 0;
@@ -462,7 +487,11 @@ export function mountPlayer(root, options = {}) {
 
   function jump(delta) {
     if (!photos.length) return;
-    index = (index + delta + photos.length) % photos.length;
+    const step = delta < 0 ? -1 : 1;
+    const start = index;
+    do {
+      index = (index + step + photos.length) % photos.length;
+    } while (photos[index]?.skip && index !== start);
     clock = 0;
     fading = false;
     fadeU = 0;
@@ -1262,6 +1291,7 @@ export function mountPlayer(root, options = {}) {
             faces,
             i: next.length,
             owned: true,
+            remoteId: record.remoteId || "",
           };
           next.push(photo);
           if (!shown) {
@@ -1320,6 +1350,40 @@ export function mountPlayer(root, options = {}) {
 
   async function refreshAlbums() {
     albumList.replaceChildren();
+    const joinBox = document.createElement("div");
+    joinBox.className = "nl-album";
+    const joinLead = document.createElement("p");
+    joinLead.textContent = "Shared album";
+    const joinHelp = document.createElement("p");
+    joinHelp.className = "nl-album-count";
+    joinHelp.textContent = "Same photos on every television. Each one plays at its own pace.";
+    const codeInput = document.createElement("input");
+    codeInput.className = "nl-album-name";
+    codeInput.maxLength = 12;
+    codeInput.placeholder = "Join code";
+    codeInput.setAttribute("aria-label", "Join code");
+    codeInput.autocomplete = "off";
+    codeInput.spellcheck = false;
+    const joinActions = document.createElement("div");
+    joinActions.className = "nl-album-actions";
+    const joinBtn = rowButton("Join");
+    const phoneBtn = rowButton("Use phone");
+    joinBtn.addEventListener("click", () => {
+      joinBtn.textContent = "Joining…";
+      joinWithCode(codeInput.value).then(() => {
+        joinBtn.textContent = "Join";
+      }).catch((err) => {
+        joinBtn.textContent = "Join";
+        note.hidden = false;
+        note.textContent = err?.message || "Could not join that album.";
+      });
+    });
+    phoneBtn.addEventListener("click", () => {
+      void startJoinPair();
+    });
+    joinActions.append(joinBtn, phoneBtn);
+    joinBox.append(joinLead, joinHelp, codeInput, joinActions);
+    albumList.append(joinBox);
     let albums = [];
     try {
       albums = await listAlbums();
@@ -1335,8 +1399,9 @@ export function mountPlayer(root, options = {}) {
     if (!albums.length) {
       const empty = document.createElement("p");
       empty.className = "nl-albums-empty";
-      empty.textContent = "No albums yet. Photos added from the phone are saved here.";
+      empty.textContent = "No albums on this television yet. Join a shared one, or add photos from the phone.";
       albumList.append(empty);
+      codeInput.focus();
       return;
     }
     for (const album of albums) {
@@ -1346,7 +1411,10 @@ export function mountPlayer(root, options = {}) {
       title.textContent = album.name;
       const count = document.createElement("p");
       count.className = "nl-album-count";
-      count.textContent = `${album.count} ${album.count === 1 ? "photo" : "photos"}`;
+      const sharedLive = Boolean(album.shared && album.memberToken);
+      count.textContent = sharedLive
+        ? `Shared · ${album.count} ${album.count === 1 ? "photo" : "photos"}`
+        : `${album.count} ${album.count === 1 ? "photo" : "photos"}`;
       const buttons = document.createElement("div");
       buttons.className = "nl-album-actions";
       const play = rowButton("Play");
@@ -1395,11 +1463,29 @@ export function mountPlayer(root, options = {}) {
           remove.textContent = "Remove?";
           return;
         }
+        if (album.memberToken && album.remoteId) await leaveServerAlbum(album);
         await deleteAlbum(album.id);
         if (currentAlbumId === album.id) currentAlbumId = "";
         await refreshAlbums();
       });
-      buttons.append(play, rename, saver, remove);
+      if (sharedLive) {
+        const leave = rowButton("Leave");
+        leave.addEventListener("click", async () => {
+          if (leave.dataset.arm !== "1") {
+            leave.dataset.arm = "1";
+            leave.textContent = "Leave?";
+            return;
+          }
+          await leaveServerAlbum(album);
+          await leaveSharedLocal(album.id);
+          note.hidden = false;
+          note.textContent = "Left the shared album. Photos already here stay on this television.";
+          await refreshAlbums();
+        });
+        buttons.append(play, saver, leave, remove);
+      } else {
+        buttons.append(play, rename, saver, remove);
+      }
       row.append(title, count, buttons);
       albumList.append(row);
     }
@@ -1558,25 +1644,28 @@ export function mountPlayer(root, options = {}) {
 
   const LUSTRE_SITE = "https://lustre.show";
 
-  async function createPhoneCode() {
+  async function createPhoneCode(extra) {
+    const post = async (url) => {
+      const created = await fetch(url, extra
+        ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(extra) }
+        : { method: "POST" });
+      if (!created.ok) return null;
+      const body = await created.json().catch(() => ({}));
+      return body.id || null;
+    };
     const here = location.origin && location.origin !== "null" ? location.origin : "";
     if (here) {
       try {
-        const created = await fetch("/api/pair", { method: "POST" });
-        if (created.ok) {
-          const body = await created.json();
-          if (body.id) return { id: body.id, origin: here };
-        }
+        const id = await post("/api/pair");
+        if (id) return { id, origin: here };
       } catch {
         /* this television has no code service of its own */
       }
     }
     if (here === LUSTRE_SITE) throw new Error("This screen can't make a phone code. Use Sign in on this screen.");
-    const created = await fetch(`${LUSTRE_SITE}/api/pair`, { method: "POST" });
-    if (!created.ok) throw new Error("This screen can't make a phone code. Use Sign in on this screen.");
-    const body = await created.json();
-    if (!body.id) throw new Error("Could not make a code.");
-    return { id: body.id, origin: LUSTRE_SITE };
+    const id = await post(`${LUSTRE_SITE}/api/pair`);
+    if (!id) throw new Error("This screen can't make a phone code. Use Sign in on this screen.");
+    return { id, origin: LUSTRE_SITE };
   }
 
   async function startPhonePair() {
@@ -1911,7 +2000,8 @@ export function mountPlayer(root, options = {}) {
   function readLaunchAlbum() {
     const bags = [];
     try {
-      if (typeof PalmSystem !== "undefined" && PalmSystem.launchParams) bags.push(PalmSystem.launchParams);
+      const palm = globalThis.PalmSystem;
+      if (palm?.launchParams) bags.push(palm.launchParams);
     } catch {
       /* the television kept the launch private */
     }
@@ -1954,6 +2044,313 @@ export function mountPlayer(root, options = {}) {
     await playStored(album.id);
   }
 
+  function candidateOrigins() {
+    const here = location.origin && location.origin !== "null" && location.protocol.startsWith("http") ? location.origin : "";
+    const list = [];
+    if (apiOrigin) list.push(apiOrigin);
+    if (here && !list.includes(here)) list.push(here);
+    if (!list.includes(LUSTRE_SITE)) list.push(LUSTRE_SITE);
+    return list;
+  }
+
+  async function apiFetch(path, options = {}) {
+    let last;
+    for (const origin of candidateOrigins()) {
+      try {
+        const res = await fetch(`${origin}${path}`, { ...options, cache: "no-store" });
+        const type = res.headers.get("content-type") || "";
+        const usable = type.includes("json") || type.startsWith("image/") || res.status === 204;
+        if (!usable) {
+          last = new Error("Could not reach Lustre");
+          continue;
+        }
+        apiOrigin = origin;
+        return res;
+      } catch (err) {
+        last = err;
+      }
+    }
+    throw last || new Error("Could not reach Lustre");
+  }
+
+  function memberHeaders(token, tv) {
+    return {
+      "Content-Type": "application/json",
+      "X-Lustre-Tv": tv,
+      "X-Lustre-Member": token,
+    };
+  }
+
+  async function leaveServerAlbum(album) {
+    const tv = await deviceId();
+    try {
+      const res = await apiFetch("/api/share/leave", {
+        method: "POST",
+        headers: memberHeaders(album.memberToken, tv),
+        body: JSON.stringify({ albumId: album.remoteId }),
+      });
+      if (res.ok || res.status === 403 || res.status === 404) {
+        await forgetLeave(album.remoteId);
+        return;
+      }
+      throw new Error("offline");
+    } catch {
+      await rememberLeave({ albumId: album.remoteId, tvId: tv, token: album.memberToken });
+    }
+  }
+
+  function retireShared(remoteIds) {
+    const drop = new Set(remoteIds);
+    if (!drop.size || currentAlbumId == null) return;
+    for (const photo of photos) {
+      if (drop.has(photo.remoteId)) photo.skip = true;
+    }
+    if (photos[index]?.skip) advance();
+    for (const photo of photos) {
+      if (!photo.skip || photo === photos[index] || !photo.owned) continue;
+      URL.revokeObjectURL(photo.src);
+      photo.owned = false;
+    }
+  }
+
+  function addToShow(photo) {
+    photo.i = photos.length;
+    placePhoto(photo);
+    photos.push(photo);
+  }
+
+  async function photoFromBlob(blob, item) {
+    const src = URL.createObjectURL(blob);
+    try {
+      const img = await loadImage(src);
+      const faces = detector ? await detector.detect(img) : [];
+      return {
+        src,
+        blob,
+        title: String(item.filename || "Photo").replace(/\.[^.]+$/, ""),
+        taken: Number(item.taken) || 0,
+        date: takenLabel(Number(item.taken) || 0),
+        natW: img.naturalWidth,
+        natH: img.naturalHeight,
+        faces,
+        i: photos.length,
+        owned: true,
+        remoteId: item.id,
+      };
+    } catch (err) {
+      URL.revokeObjectURL(src);
+      throw err;
+    }
+  }
+
+  async function syncOne(album, tv, opts = {}) {
+    if (!album?.memberToken || !album.remoteId || dead) return;
+    if (syncingAlbums.has(album.id)) return;
+    syncingAlbums.add(album.id);
+    try {
+      const res = await apiFetch(
+        `/api/share/sync?album=${encodeURIComponent(album.remoteId)}&rev=${encodeURIComponent(album.revision ?? -1)}`,
+        { headers: memberHeaders(album.memberToken, tv) },
+      );
+      if (res.status === 401 || res.status === 403 || res.status === 404) {
+        await leaveSharedLocal(album.id);
+        album.memberToken = "";
+        if (currentAlbumId === album.id) {
+          downloadNote = "Removed from the shared album. Photos already here keep playing.";
+          hudSig = "";
+        }
+        return;
+      }
+      if (!res.ok) throw new Error("Could not check the shared album");
+      const body = await res.json().catch(() => ({}));
+      if (body.unchanged) return;
+      if (!Array.isArray(body.photos)) throw new Error("Could not check the shared album");
+      if (loading) return;
+      const stored = await loadAlbum(album.id);
+      const plan = planCatchUp(
+        (stored.photos || []).map((photo) => ({ remoteId: photo.remoteId || "" })),
+        body.photos || [],
+      );
+      if (plan.remove.length) {
+        await removeSharedPhotos(album.id, plan.remove);
+        if (currentAlbumId === album.id) retireShared(plan.remove);
+      }
+      let seen = 0;
+      for (const item of plan.download) {
+        if (dead) return;
+        seen += 1;
+        if (!started || currentAlbumId === album.id) {
+          downloadNote = `Loading ${seen} of ${plan.download.length}`;
+          hudSig = "";
+        }
+        const file = await apiFetch(`/api/share/photos/${encodeURIComponent(item.id)}`, {
+          headers: { "X-Lustre-Tv": tv, "X-Lustre-Member": album.memberToken },
+        });
+        if (file.status === 401 || file.status === 403 || file.status === 404) {
+          await leaveSharedLocal(album.id);
+          album.memberToken = "";
+          return;
+        }
+        if (!file.ok) throw new Error("Could not download a shared photo");
+        const blob = await file.blob();
+        await addSharedPhoto(album.id, {
+          remoteId: item.id,
+          blob,
+          title: item.filename || "Photo",
+          taken: item.taken || 0,
+        });
+        const showHere = opts.autostart || currentAlbumId === album.id;
+        if (!showHere) continue;
+        try {
+          const photo = await photoFromBlob(blob, item);
+          if (!started || currentAlbumId !== album.id) {
+            currentAlbumId = album.id;
+            photosSaved = true;
+            savedName = body.name || album.name;
+            loading = false;
+            await showPrepared([photo], "album");
+          } else {
+            addToShow(photo);
+          }
+        } catch {
+          /* keep the saved copy; skip a file the television cannot open */
+        }
+        await yieldFrame();
+      }
+      await setSharedMeta(album.id, { revision: body.revision, name: body.name });
+      album.revision = body.revision;
+      album.name = body.name || album.name;
+      if (seen && seen === plan.download.length) {
+        downloadNote = "";
+        hudSig = "";
+      }
+      if (opts.autostart && !started) {
+        const after = await loadAlbum(album.id);
+        if (after.photos?.length) await playStored(album.id);
+        else {
+          openSheet();
+          note.textContent = "Joined. Photos appear here as they are added on the phone.";
+        }
+      }
+    } finally {
+      syncingAlbums.delete(album.id);
+    }
+  }
+
+  async function flushLeaves(tv) {
+    const pending = await pendingLeaves().catch(() => []);
+    for (const entry of pending) {
+      try {
+        const res = await apiFetch("/api/share/leave", {
+          method: "POST",
+          headers: memberHeaders(entry.token, entry.tvId || tv),
+          body: JSON.stringify({ albumId: entry.albumId }),
+        });
+        if (res.ok || res.status === 403 || res.status === 404) await forgetLeave(entry.albumId);
+      } catch {
+        /* the television tries again on the next poll */
+      }
+    }
+  }
+
+  async function syncAllShared() {
+    const tv = await deviceId();
+    await flushLeaves(tv);
+    const albums = await listAlbums();
+    for (const album of albums) {
+      if (!album.memberToken || !album.remoteId) continue;
+      try {
+        await syncOne(album, tv);
+      } catch {
+        if (!downloadNote) {
+          downloadNote = "Shared album will catch up when the television is online.";
+          hudSig = "";
+        }
+      }
+    }
+  }
+
+  function startShareLoop() {
+    if (shareTimer) return;
+    const run = async () => {
+      if (!dead) {
+        try {
+          await syncAllShared();
+        } catch {
+          /* keep playing the copies already on this television */
+        }
+      }
+      if (!dead) shareTimer = window.setTimeout(run, SHARE_POLL_MS);
+    };
+    shareTimer = window.setTimeout(run, 2000);
+  }
+
+  async function joinWithCode(raw) {
+    const code = String(raw || "").trim();
+    if (!code) throw new Error("Enter the join code from the phone.");
+    const tv = await deviceId();
+    const res = await apiFetch("/api/share/join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, tvId: tv }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Could not join that album.");
+    const album = await saveSharedMembership({
+      remoteId: data.albumId,
+      name: data.albumName,
+      revision: -1,
+      memberToken: data.memberToken,
+    });
+    note.textContent = "Joining the shared album…";
+    await syncOne(album, tv, { autostart: true });
+  }
+
+  async function startJoinPair() {
+    const gen = ++pickGen;
+    cancelPick();
+    let stopped = false;
+    cancelPick = () => {
+      stopped = true;
+    };
+    picking = true;
+    showMenu("");
+    heading.textContent = "Add this television";
+    blurb.textContent = "On the phone, open the shared album and add this television. It plays at its own pace.";
+    note.textContent = "Making a code for this television…";
+    showCode(false);
+    try {
+      const tv = await deviceId();
+      const { id, origin } = await createPhoneCode({ purpose: "join", tvId: tv });
+      if (gen !== pickGen || stopped || dead) return;
+      showCode(true, `${origin}/tv/share.html?pair=${encodeURIComponent(id)}`);
+      note.textContent = "Waiting for the phone.";
+      while (gen === pickGen && !stopped && !dead) {
+        await sleep(2000);
+        if (gen !== pickGen || stopped || dead) return;
+        const res = await fetch(`${origin}/api/pair?id=${encodeURIComponent(id)}`, { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (data.status === "error") throw new Error(data.error || "That code expired.");
+        if (data.status !== "joined") continue;
+        if (!data.memberToken || !data.albumId) throw new Error("The shared album did not include this television.");
+        picking = false;
+        const album = await saveSharedMembership({
+          remoteId: data.albumId,
+          name: data.albumName,
+          revision: -1,
+          memberToken: data.memberToken,
+        });
+        closeSheet(true);
+        await syncOne(album, tv, { autostart: true });
+        return;
+      }
+    } catch (err) {
+      if (gen !== pickGen || dead) return;
+      picking = false;
+      note.textContent = err?.message || "Could not join the shared album.";
+    }
+  }
+
   async function boot() {
     try {
       await loadScript(base + "js/pico.js");
@@ -1964,6 +2361,7 @@ export function mountPlayer(root, options = {}) {
     if (dead) return;
     holdAwake();
     void checkUpdate();
+    startShareLoop();
     const saver = await screensaverId().catch(() => "");
     saverAlbumId = saver || "";
     booted = true;
@@ -2013,6 +2411,7 @@ export function mountPlayer(root, options = {}) {
 
   return () => {
     dead = true;
+    clearTimeout(shareTimer);
     cancelAnimationFrame(raf);
     window.removeEventListener("keydown", onKey, true);
     for (const p of photos) if (p.owned) URL.revokeObjectURL(p.src);

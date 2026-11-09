@@ -1,5 +1,5 @@
 import { defineEventHandler, readBody, setHeader, setResponseStatus } from "h3";
-import { markPhonePairOpened } from "../../../pair-store";
+import { markPhonePairOpened } from "../../../pair-store.ts";
 
 export default defineEventHandler(async (event) => {
   setHeader(event, "Cache-Control", "no-store");
@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 400);
     return { error: "Missing code." };
   }
-  const result = markPhonePairOpened(id);
-  if (result.error) setResponseStatus(event, 404);
+  const result = await markPhonePairOpened(id);
+  if ("error" in result && result.error) setResponseStatus(event, 404);
   return result;
 });

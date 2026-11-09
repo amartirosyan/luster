@@ -4,6 +4,8 @@ const SCOPE = "https://www.googleapis.com/auth/photospicker.mediaitems.readonly"
 const note = document.getElementById("note");
 const button = document.getElementById("go");
 const code = new URLSearchParams(location.search).get("code") || "";
+const share = document.getElementById("share");
+if (share && code) share.href = `share.html?pair=${encodeURIComponent(code)}`;
 
 if (code) {
   fetch("/api/pair/open", {

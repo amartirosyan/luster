@@ -507,6 +507,10 @@ body,
   font-size: 16px;
 }
 
+.nl-album-name::placeholder {
+  color: rgba(244, 239, 230, 0.45);
+}
+
 .nl-home-version {
   margin: 16px 0 0;
   font-family: var(--nl-sans);

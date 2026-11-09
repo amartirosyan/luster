@@ -18,7 +18,7 @@ function Terms() {
     <article className="lustre-doc">
       <p className="lustre-doc-kicker">Lustre</p>
       <h1>Terms of Service</h1>
-      <p className="lustre-doc-date">Effective 3 November 2026</p>
+      <p className="lustre-doc-date">Effective 9 November 2026</p>
       <p>
         These terms cover the Lustre photo show at <a href="https://lustre.show">lustre.show</a>{" "}
         and the Lustre application for LG webOS televisions. By scanning a code, signing in
@@ -29,8 +29,9 @@ function Terms() {
       <p>
         Lustre plays photos you choose on a television. You pick the photos in Google Photos
         on your phone. Lustre then shows those photos, and it can keep a copy on the
-        television as an album. Lustre is not a backup of your Google Photos library, and it
-        does not replace the television’s own screensaver.
+        television as an album. A shared album also keeps a copy on Lustre’s server until
+        you delete that photo or that album. Lustre is not a backup of your Google Photos
+        library, and it does not replace the television’s own screensaver.
       </p>
 
       <h2>Your account</h2>

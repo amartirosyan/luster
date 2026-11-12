@@ -15,7 +15,7 @@ export const Route = createFileRoute("/install")({
 });
 
 function Install() {
-  const [version, setVersion] = useState("1.2.13");
+  const [version, setVersion] = useState("1.2.14");
 
   useEffect(() => {
     let gone = false;
@@ -135,14 +135,36 @@ ares-launch --device tv com.lustre.tv`}</code>
 
       <h2>Home Assistant</h2>
       <p>
-        Home Assistant can open Lustre and play an album that is already saved on that
-        television. Add the LG webOS TV integration first and accept the connection on the
-        TV. Home Assistant does not install Lustre, and it does not copy photos. Each set
-        keeps its own albums.
+        Home Assistant can open Lustre and offer the screensaver to another television.
+        It does not copy the photos. The other set downloads them from Google, and only
+        for about an hour after the phone sign-in. A set that is off during that hour
+        cannot catch up.
+      </p>
+      <p>Add the LG webOS TV integration first and accept the connection on each television.</p>
+      <ol>
+        <li>
+          <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=amartirosyan&repository=luster&category=integration">
+            Add Lustre to your Home Assistant
+          </a>
+          . It opens Home Assistant and installs the integration from this repository. Then
+          add the Lustre integration and choose the televisions. You do not press anything else there.
+        </li>
+        <li>
+          On the television, open Preferences and save the Home Assistant address, such as{" "}
+          <code>homeassistant.local:8123</code>.
+        </li>
+        <li>Load the photos. The first album is the screensaver. Press Sync on the album you want copied.</li>
+        <li>Each other television that is on asks Sync screensaver. Press OK there.</li>
+      </ol>
+      <p>
+        The Google sign-in stays on lustre.show. Home Assistant only keeps the screensaver
+        code for that hour. The Screensaver sensor reads ready while the offer can still
+        be made.
       </p>
       <p>
-        Use the album name shown in Lustre, or its id. Capital letters do not matter. If two
-        albums share a name, the newer one plays. The television needs to be on.
+        You can still open an album that is already saved on one television. Use the album
+        name, or its id. Capital letters do not matter. If two albums share a name, the
+        newer one plays. The television needs to be on.
       </p>
       <pre>
         <code>{`action: webostv.command
@@ -156,9 +178,7 @@ data:
       album: Sunday`}</code>
       </pre>
       <p>
-        Change the entity to your television and <code>Sunday</code> to the album name. The
-        same action works in a script or an automation. Leave out <code>params</code> to open
-        Lustre on its screensaver album, if one is set.
+        Leave out <code>params</code> to open Lustre on its screensaver, if one is set.
       </p>
 
       <h2>If the computer cannot see the TV</h2>

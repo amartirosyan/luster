@@ -1,0 +1,24 @@
+open:
+  name: Open Lustre
+  description: Opens Lustre on a television and lets that set remember Home Assistant.
+  fields:
+    entity_id:
+      name: Television
+      description: An LG webOS television running Lustre.
+      required: true
+      selector:
+        entity:
+          domain: media_player
+          integration: webostv
+offer_sync:
+  name: Offer screensaver
+  description: Opens Lustre on a television and asks to copy the screensaver shared within the last hour.
+  fields:
+    entity_id:
+      name: Television
+      description: An LG webOS television running Lustre.
+      required: true
+      selector:
+        entity:
+          domain: media_player
+          integration: webostv

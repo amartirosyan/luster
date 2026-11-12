@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Lustre",
+        "description": "Choose the LG televisions that run Lustre. Home Assistant opens them and passes the screensaver along. It does not copy the photos.",
+        "data": {
+          "tvs": "Televisions"
+        }
+      }
+    },
+    "error": {
+      "tvs": "Choose at least one television."
+    },
+    "abort": {
+      "single_instance_allowed": "Lustre is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Lustre televisions",
+        "data": {
+          "tvs": "Televisions"
+        }
+      }
+    },
+    "error": {
+      "tvs": "Choose at least one television."
+    }
+  }
+}

@@ -6,7 +6,7 @@ Do not rebuild it. Change the working app. Keep the motion smooth even if a phot
 
 ## Version
 
-Current release is **1.2.13**.
+Current release is **1.2.14**.
 
 On every publish, raise only the last number: 1.2.3, 1.2.4, and so on. Do not change 1 or 2 unless Armen asks.
 
@@ -35,7 +35,7 @@ Package with `ares-package` from `public/tv` into `public/`. The simulator zip i
 
 ## Do not forget
 
-- webOS cannot run a server on the TV. Home Assistant launches Lustre with `system.launcher/launch`, app id `com.lustre.tv`, and `params.album` set to a saved album name or id. That album plays immediately. A matching name uses the newest album. Without `album`, a screensaver album still plays if one is set.
+- webOS cannot run a server on the TV, and it cannot find Home Assistant on the network. The address is saved in Preferences on the television. Sync on an album posts `{ pair, screensaver: true }` to `http://that-address:8123/api/webhook/lustre`. The integration in `custom_components/lustre` then opens the other televisions, and each one asks before it downloads. That folder must stay at the repository root so the Marketplace can install it. `hacs.json` and the button in `README.md` are part of that. The session on lustre.show lasts about an hour. A newly saved album becomes the screensaver when none is set. `params.album` still plays a saved album by name or id. Without those params, a screensaver album still plays if one is set.
 - Pairing state is an in-memory map on the server. A phone and a TV can hit different copies and the code looks expired. A new code fixes that one time. Durable pairing storage is not built.
 - Motion on a real LG TV must stay on the GPU: transforms and the Web Animations API, not width, height, or a CSS blur every frame. The side image is a baked plate.
 - Fonts ship inside the app. Do not rely on the simulator’s fonts.

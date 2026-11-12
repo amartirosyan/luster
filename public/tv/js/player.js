@@ -11,10 +11,10 @@ import {
 } from "./engine.js?v=9";
 import { createDetector } from "./detect.js?v=12";
 import { createGooglePhotos, explainGoogleError } from "./google.js?v=25";
-import { deleteAlbum, listAlbums, loadAlbum, renameAlbum, saveAlbum, screensaverId, setScreensaver } from "./albums.js?v=3";
+import { deleteAlbum, listAlbums, loadAlbum, renameAlbum, saveAlbum, screensaverId, setScreensaver, rememberHook, rememberedHook, rememberShare, sharedPair, addressFromHook, albumForPair } from "./albums.js?v=5";
 import qrcode from "./qrcode.js?v=2";
 
-const REV = "1.2.13";
+const REV = "1.2.14";
 const BLURS = [
   { id: "none", label: "None" },
   { id: "smooth", label: "Smooth", radius: 8, passes: 2, sat: 1.05, dark: 0.22 },
@@ -117,6 +117,8 @@ export function mountPlayer(root, options = {}) {
   let idleAt = performance.now();
   let saverAlbumId = "";
   let saverWatch = false;
+  let activePair = "";
+  let offeredPair = "";
   const google = createGooglePhotos();
   let cancelPick = () => {};
   let hudUntil = 0;
@@ -504,7 +506,10 @@ export function mountPlayer(root, options = {}) {
       if (key === "Escape" || code === 461 || code === 413) {
         e.preventDefault();
         if (albumMode) showMenu("");
-        else closeSheet();
+        else if (offeredPair) {
+          hideSyncOffer();
+          void playDefault();
+        } else closeSheet();
         return;
       }
       const typing = document.activeElement instanceof HTMLInputElement;
@@ -961,10 +966,36 @@ export function mountPlayer(root, options = {}) {
   const prefUpdate = document.createElement("button");
   prefUpdate.type = "button";
   prefUpdate.textContent = "Check for update";
+  const haLead = document.createElement("p");
+  haLead.className = "nl-albums-empty";
+  haLead.textContent = "Home Assistant";
+  const haInput = document.createElement("input");
+  haInput.className = "nl-album-name";
+  haInput.type = "text";
+  haInput.inputMode = "url";
+  haInput.autocomplete = "off";
+  haInput.spellcheck = false;
+  haInput.maxLength = 200;
+  haInput.placeholder = "homeassistant.local:8123";
+  haInput.setAttribute("aria-label", "Home Assistant address");
+  const haSave = document.createElement("button");
+  haSave.type = "button";
+  haSave.textContent = "Save address";
   const prefNote = document.createElement("p");
   prefNote.className = "nl-albums-empty";
-  prefPanel.append(prefBack, prefLead, prefChoices, prefVersion, prefUpdate, prefNote);
-  card.append(heading, blurb, qrWrap, actions, albumPanel, prefPanel, note, homeVersion, originLabel, originValue);
+  prefPanel.append(prefBack, prefLead, prefChoices, haLead, haInput, haSave, prefVersion, prefUpdate, prefNote);
+  const offerPanel = document.createElement("div");
+  offerPanel.className = "nl-sheet-actions";
+  offerPanel.hidden = true;
+  const offerYes = document.createElement("button");
+  offerYes.type = "button";
+  offerYes.className = "is-primary";
+  offerYes.textContent = "Sync screensaver";
+  const offerNo = document.createElement("button");
+  offerNo.type = "button";
+  offerNo.textContent = "Not now";
+  offerPanel.append(offerYes, offerNo);
+  card.append(heading, blurb, qrWrap, actions, offerPanel, albumPanel, prefPanel, note, homeVersion, originLabel, originValue);
   sheet.append(card);
   root.append(sheet);
   sheet.addEventListener("click", (ev) => {
@@ -1035,6 +1066,7 @@ export function mountPlayer(root, options = {}) {
   }
 
   function openSheet(opts = {}) {
+    hideSyncOffer();
     sheetOpen = true;
     sheet.hidden = false;
     paintSign();
@@ -1080,6 +1112,11 @@ export function mountPlayer(root, options = {}) {
     }));
     if (!items.length) throw new Error("Nothing to save");
     const album = await saveAlbum(name || albumNameNow(), items);
+    if (activePair) await rememberShare(album.id, activePair);
+    if (!(await screensaverId().catch(() => ""))) {
+      await setScreensaver(album.id);
+      saverAlbumId = album.id;
+    }
     photosSaved = true;
     savedName = album.name;
     saveBtn.hidden = true;
@@ -1332,6 +1369,7 @@ export function mountPlayer(root, options = {}) {
     }
     saverBtn.hidden = !albums.some((album) => album.screensaver);
     saverAlbumId = albums.find((album) => album.screensaver)?.id || "";
+    const hook = await rememberedHook().catch(() => "");
     if (!albums.length) {
       const empty = document.createElement("p");
       empty.className = "nl-albums-empty";
@@ -1354,6 +1392,7 @@ export function mountPlayer(root, options = {}) {
       const saver = rowButton(album.screensaver ? "Screensaver on" : "Use as screensaver");
       if (album.screensaver) saver.classList.add("is-on");
       const remove = rowButton("Remove");
+      const canSync = hook && await sharedPair(album.id);
       play.addEventListener("click", () => {
         showMenu("");
         void playStored(album.id);
@@ -1385,8 +1424,9 @@ export function mountPlayer(root, options = {}) {
         rename.textContent = "Save";
       });
       saver.addEventListener("click", async () => {
-        await setScreensaver(album.screensaver ? "" : album.id);
-        saverAlbumId = album.screensaver ? "" : album.id;
+        const turningOn = !album.screensaver;
+        await setScreensaver(turningOn ? album.id : "");
+        saverAlbumId = turningOn ? album.id : "";
         await refreshAlbums();
       });
       remove.addEventListener("click", async () => {
@@ -1399,6 +1439,17 @@ export function mountPlayer(root, options = {}) {
         if (currentAlbumId === album.id) currentAlbumId = "";
         await refreshAlbums();
       });
+      if (canSync) {
+        const sync = rowButton("Sync");
+        sync.addEventListener("click", async () => {
+          const told = await publishScreensaver(album.id);
+          note.hidden = false;
+          if (told === "sent") note.textContent = "Sent. The other televisions can copy it for about an hour.";
+          else if (told === "failed") note.textContent = "Home Assistant did not receive it.";
+          else note.textContent = "Add the Home Assistant address in Preferences.";
+        });
+        buttons.append(sync);
+      }
       buttons.append(play, rename, saver, remove);
       row.append(title, count, buttons);
       albumList.append(row);
@@ -1425,6 +1476,7 @@ export function mountPlayer(root, options = {}) {
       qrWrap.hidden = true;
       heading.textContent = "Preferences";
       paintPrefs();
+      void showHaAddress();
       void checkUpdate();
       return;
     }
@@ -1460,6 +1512,28 @@ export function mountPlayer(root, options = {}) {
     updateBtn.hidden = !updateOffer;
     if (updateOffer) updateBtn.textContent = `Update ${updateOffer.version}`;
     prefChoices.querySelector("button")?.focus();
+  }
+
+  async function showHaAddress() {
+    if (document.activeElement === haInput) return;
+    const hook = await rememberedHook().catch(() => "");
+    haInput.value = hook ? addressFromHook(hook) : "";
+  }
+
+  async function saveHaAddress() {
+    const typed = haInput.value.trim();
+    if (!typed) {
+      await rememberHook("");
+      prefNote.textContent = "Home Assistant address removed.";
+      return;
+    }
+    const hook = await rememberHook(typed);
+    if (!hook) {
+      prefNote.textContent = "Use an address like homeassistant.local:8123.";
+      return;
+    }
+    haInput.value = addressFromHook(hook);
+    prefNote.textContent = "Address saved. Sync appears on albums loaded from the phone.";
   }
 
   function installOffer() {
@@ -1533,6 +1607,14 @@ export function mountPlayer(root, options = {}) {
   albumBack.addEventListener("click", () => showAlbumList(false));
   prefsBtn.addEventListener("click", () => showMenu("prefs"));
   prefBack.addEventListener("click", () => showMenu(""));
+  haSave.addEventListener("click", () => {
+    void saveHaAddress();
+  });
+  haInput.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Enter") return;
+    ev.preventDefault();
+    void saveHaAddress();
+  });
   prefUpdate.addEventListener("click", () => installOffer());
   updateBtn.addEventListener("click", () => {
     showMenu("prefs");
@@ -1550,6 +1632,16 @@ export function mountPlayer(root, options = {}) {
   });
   saverBtn.addEventListener("click", () => {
     void beginScreensaver();
+  });
+  offerYes.addEventListener("click", () => {
+    const pairId = offeredPair;
+    if (!pairId || loading) return;
+    hideSyncOffer();
+    void acceptScreensaver(pairId);
+  });
+  offerNo.addEventListener("click", () => {
+    hideSyncOffer();
+    void playDefault();
   });
 
   function sleep(ms) {
@@ -1621,6 +1713,7 @@ export function mountPlayer(root, options = {}) {
           note.textContent = "No photos were selected.";
           return;
         }
+        activePair = pair.id;
         closeSheet(true);
         void takeGoogleItems(items);
       };
@@ -1735,7 +1828,7 @@ export function mountPlayer(root, options = {}) {
     nodes.clear();
   }
 
-  async function takeGoogleItems(images) {
+  async function takeGoogleItems(images, opts = {}) {
     images = oldestFirstItems(images);
     reel = "google";
     started = false;
@@ -1874,8 +1967,13 @@ export function mountPlayer(root, options = {}) {
     }
     downloadNote = failed ? `${failed} did not download` : "";
     hudSig = "";
-    void persistCurrent().then(() => {
-      note.textContent = `Saved as ${savedName}`;
+    void persistCurrent().then(async (album) => {
+      if (opts.screensaver && album?.id) {
+        await setScreensaver(album.id);
+        saverAlbumId = album.id;
+        screensaverMode = true;
+      }
+      note.textContent = opts.screensaver ? "Screensaver synced." : `Saved as ${savedName}`;
     }).catch((err) => {
       photosSaved = false;
       savedName = "";
@@ -1885,30 +1983,35 @@ export function mountPlayer(root, options = {}) {
 
   let detector = null;
   let booted = false;
-  let launchToken = readLaunchAlbum();
+  let pendingLaunch = readLaunch();
 
-  function albumToken(value) {
-    if (value == null) return "";
+  function launchBag(value, out) {
+    if (value == null) return;
     if (typeof value === "string") {
       const trimmed = value.trim();
-      if (!trimmed) return "";
+      if (!trimmed) return;
       if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
         try {
-          return albumToken(JSON.parse(trimmed));
+          launchBag(JSON.parse(trimmed), out);
         } catch {
-          return trimmed;
+          if (!out.album) out.album = trimmed;
         }
+        return;
       }
-      return trimmed;
+      if (!out.album) out.album = trimmed;
+      return;
     }
-    if (typeof value !== "object") return "";
+    if (typeof value !== "object") return;
+    if (typeof value.hook === "string" && value.hook.trim()) out.hook = value.hook.trim();
+    if (typeof value.pair === "string" && value.pair.trim()) out.pair = value.pair.trim().toLowerCase();
+    if (typeof value.offer === "string" && value.offer.trim()) out.offer = value.offer.trim().toLowerCase();
     const direct = value.album || value.albumId || value.albumName || value.contentId;
-    if (typeof direct === "string" && direct.trim()) return direct.trim();
-    if (value.params) return albumToken(value.params);
-    return "";
+    if (typeof direct === "string" && direct.trim()) out.album = direct.trim();
+    if (value.params) launchBag(value.params, out);
   }
 
-  function readLaunchAlbum() {
+  function readLaunch() {
+    const out = { album: "", hook: "", pair: "", offer: "" };
     const bags = [];
     try {
       if (typeof PalmSystem !== "undefined" && PalmSystem.launchParams) bags.push(PalmSystem.launchParams);
@@ -1922,16 +2025,114 @@ export function mountPlayer(root, options = {}) {
     }
     try {
       const query = new URLSearchParams(location.search);
-      const named = query.get("album") || query.get("albumId");
-      if (named) bags.push({ album: named });
+      const named = {};
+      if (query.get("album") || query.get("albumId")) named.album = query.get("album") || query.get("albumId");
+      if (query.get("hook")) named.hook = query.get("hook");
+      if (query.get("pair")) named.pair = query.get("pair");
+      if (query.get("offer")) named.offer = query.get("offer");
+      if (Object.keys(named).length) bags.push(named);
     } catch {
       /* a packaged app has no query string */
     }
-    for (const bag of bags) {
-      const token = albumToken(bag);
-      if (token) return token;
+    for (const bag of bags) launchBag(bag, out);
+    return out;
+  }
+
+  function pairIdOk(value) {
+    return /^[0-9a-f]{32}$/.test(String(value || ""));
+  }
+
+  async function publishScreensaver(albumId) {
+    const pair = await sharedPair(albumId);
+    if (!pair) return "";
+    const hook = await rememberedHook();
+    if (!hook) return "nohook";
+    try {
+      await fetch(hook, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        body: JSON.stringify({ pair, screensaver: true }),
+      });
+    } catch {
+      return "failed";
     }
-    return "";
+    return "sent";
+  }
+
+  function showSyncOffer(pairId) {
+    if (!pairIdOk(pairId)) return false;
+    offeredPair = pairId;
+    sheetOpen = true;
+    sheet.hidden = false;
+    albumMode = false;
+    albumPanel.hidden = true;
+    prefPanel.hidden = true;
+    actions.hidden = true;
+    qrWrap.hidden = true;
+    offerPanel.hidden = false;
+    blurb.hidden = false;
+    heading.textContent = "Sync screensaver";
+    blurb.textContent = "Copy the screensaver from the other television. Google only keeps these photos available for about an hour.";
+    note.hidden = false;
+    note.textContent = "";
+    requestAnimationFrame(() => offerYes.focus());
+    return true;
+  }
+
+  function hideSyncOffer() {
+    offeredPair = "";
+    offerPanel.hidden = true;
+    actions.hidden = false;
+  }
+
+  async function acceptScreensaver(pairId) {
+    loading = true;
+    status.hidden = false;
+    setStatus("Asking for the screensaver…");
+    closeSheet(true);
+    try {
+      const res = await fetch(`${LUSTRE_SITE}/api/pair?id=${encodeURIComponent(pairId)}`, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (data.status !== "done" || !data.token || !data.sessionId) {
+        throw new Error(data.error || "That screensaver is no longer available.");
+      }
+      google.adopt(data.token, data.expiresIn);
+      google.useSite(LUSTRE_SITE);
+      setStatus("Loading the photo list…");
+      const items = await google.collect(data.sessionId);
+      if (!items.length) throw new Error("No photos were selected.");
+      loading = false;
+      await takeGoogleItems(items, { screensaver: true });
+    } catch (err) {
+      loading = false;
+      status.hidden = true;
+      showSyncOffer(pairId);
+      note.textContent = err?.message || "Could not sync the screensaver.";
+    }
+  }
+
+  async function playDefault() {
+    const saver = saverAlbumId || (await screensaverId().catch(() => ""));
+    saverAlbumId = saver || "";
+    if (saver) {
+      await playStored(saver, { screensaver: true });
+      if (started) return;
+    }
+    openSheet({ pair: true });
+  }
+
+  async function applyLaunch(launch, relaunch) {
+    if (launch.hook) await rememberHook(launch.hook).catch(() => {});
+    if (launch.offer === "screensaver" && pairIdOk(launch.pair)) {
+      if (await albumForPair(launch.pair)) return;
+      if (showSyncOffer(launch.pair)) return;
+    }
+    if (launch.album) {
+      await playLaunchAlbum(launch.album);
+      return;
+    }
+    if (!relaunch) await playDefault();
   }
 
   async function playLaunchAlbum(token) {
@@ -1967,24 +2168,13 @@ export function mountPlayer(root, options = {}) {
     const saver = await screensaverId().catch(() => "");
     saverAlbumId = saver || "";
     booted = true;
-    const requested = launchToken || readLaunchAlbum();
-    if (requested) {
-      await playLaunchAlbum(requested);
-      return;
-    }
-    if (saver) {
-      await playStored(saver, { screensaver: true });
-      if (started) return;
-    }
-    openSheet({ pair: true });
+    await applyLaunch(pendingLaunch, false);
   }
 
   document.addEventListener("webOSRelaunch", () => {
-    const next = readLaunchAlbum();
-    if (!next || dead) return;
-    launchToken = next;
-    if (!booted) return;
-    void playLaunchAlbum(next);
+    pendingLaunch = readLaunch();
+    if (!booted || dead) return;
+    void applyLaunch(pendingLaunch, true);
   }, true);
 
   window.addEventListener("keydown", onKey, true);

@@ -1,0 +1,12 @@
+{
+  "domain": "lustre",
+  "name": "Lustre",
+  "codeowners": ["@amartirosyan"],
+  "config_flow": true,
+  "documentation": "https://lustre.show/install",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/amartirosyan/luster/issues",
+  "requirements": [],
+  "version": "1.2.14"
+}

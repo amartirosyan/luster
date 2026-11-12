@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
     setResponseStatus(event, 400);
     return { error: "Missing code." };
   }
-  const result = markPhonePairOpened(id);
+  const result = await markPhonePairOpened(id);
   if (result.error) setResponseStatus(event, 404);
   return result;
 });

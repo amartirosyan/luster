@@ -1,15 +1,13 @@
 {
   "domain": "lustre",
   "name": "Lustre",
-  "codeowners": [
-    "@amartirosyan"
-  ],
+  "categories": ["media_entertainment.tv_streaming"],
+  "codeowners": ["@amartirosyan"],
   "config_flow": true,
   "documentation": "https://lustre.show/install",
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/amartirosyan/luster/issues",
   "requirements": [],
-  "version": "1.2.15",
-  "categories": ["media_entertainment.tv_streaming"]
+  "version": "1.2.15"
 }

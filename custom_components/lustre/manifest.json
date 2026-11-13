@@ -11,8 +11,5 @@
   "issue_tracker": "https://github.com/amartirosyan/luster/issues",
   "requirements": [],
   "version": "1.2.15",
-  "categories": [
-    "media_entertainment",
-    "media_entertainment.tv_streaming"
-  ]
+  "categories": ["media_entertainment.tv_streaming"]
 }
